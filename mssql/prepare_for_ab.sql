@@ -1,6 +1,10 @@
 
 SELECT SERVERPROPERTY('IsIntegratedSecurityOnly') AS IsWindowsAuthOnly;
 
+-- Drop existing login and user if they exist
+DROP LOGIN airbyte_user;
+DROP USER  airbyte_user;
+
 -- Step 1: Create a Login at the Server Level
 CREATE LOGIN airbyte_user WITH PASSWORD = 'airbyte';
 
@@ -8,6 +12,7 @@ CREATE LOGIN airbyte_user WITH PASSWORD = 'airbyte';
 USE [WideWorldImporters]; 
 
 CREATE USER airbyte_user FOR LOGIN airbyte_user;
+EXEC sp_addrolemember 'db_datareader', 'airbyte_user';
 
 -- Step 3: Grant Necessary Permissions
 GRANT CONNECT TO airbyte_user;
