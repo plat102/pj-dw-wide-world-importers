@@ -1,0 +1,89 @@
+version: 2
+sources:
+  - name: wwi_raw
+    schema: wwi_raw
+    description: "The raw data from the Wide World Importers OLTP database"
+    tables:
+      - name: sales__Customers
+        description: "The customers of Wide World Importers"
+        columns:
+          - name: CustomerID
+            description: ""
+            data_type: INTEGER
+            nullable: true
+          - name: CustomerName
+            description: ""
+            data_type: STRING
+            nullable: true
+          - name: BillToCustomerID
+            description: ""
+            data_type: INTEGER
+            nullable: true
+          - name: CustomerCategoryID
+            description: ""
+            data_type: INTEGER
+            nullable: true
+          - name: BuyingGroupID
+            description: ""
+            data_type: STRING
+            nullable: true
+          - name: PrimaryContactPersonID
+            description: ""
+            data_type: INTEGER
+            nullable: true
+          - name: AlternateContactPersonID
+            description: ""
+            data_type: STRING
+            nullable: true
+          - name: DeliveryMethodID
+            description: ""
+            data_type: INTEGER
+            nullable: true
+          - name: DeliveryCityID
+            description: ""
+            data_type: INTEGER
+            nullable: true
+          - name: CreditLimit
+            description: ""
+            data_type: STRING
+            nullable: true
+          - name: AccountOpenedDate
+            description: ""
+            data_type: DATE
+            nullable: true
+          - name: StandardDiscountPercentage
+            description: ""
+            data_type: FLOAT
+            nullable: true
+          - name: IsStatementSent
+            description: ""
+            data_type: INTEGER
+            nullable: true
+          - name: IsOnCreditHold
+            description: ""
+            data_type: INTEGER
+            nullable: true
+          - name: PaymentDays
+            description: ""
+            data_type: INTEGER
+            nullable: true
+          - name: PhoneNumber
+            description: ""
+            data_type: STRING
+            nullable: true
+          - name: WebsiteURL
+            description: ""
+            data_type: STRING
+            nullable: true
+          - name: DeliveryAddressLine
+            description: ""
+            data_type: STRING
+            nullable: true
+          - name: DeliveryLocationLat
+            description: ""
+            data_type: INTEGER
+            nullable: true
+          - name: DeliveryLocationLong
+            description: ""
+            data_type: INTEGER
+            nullable: true

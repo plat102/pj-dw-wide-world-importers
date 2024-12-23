@@ -20,4 +20,4 @@
 
 logs/*
 
-wide_world_importers_dw/profiles.*.yml
+wide_world_importers_dw/profiles*.yml

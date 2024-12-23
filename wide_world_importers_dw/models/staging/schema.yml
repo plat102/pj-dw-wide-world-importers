@@ -1,0 +1,6 @@
+
+version: 2
+
+models:
+  - name: stg_sales_customer
+    description: "Selecting columns from sales__Customers table"
