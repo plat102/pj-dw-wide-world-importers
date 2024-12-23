@@ -1,6 +1,5 @@
 # pj-dw-wide-world-importers
 
-
 ### **BigQuery Structure**
 
 **1. Project**
@@ -32,3 +31,11 @@ fact_X.sql
 int_X.sql
 /exposures
 ```
+
+## Design
+
+### Reuirements
+
+### Bus Maxtrix
+
+### Mapping

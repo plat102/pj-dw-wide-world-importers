@@ -15,3 +15,9 @@
 .idea/*
 
 /secrets/*
+
+.venv/*
+
+logs/*
+
+wide_world_importers_dw/profiles.*.yml
