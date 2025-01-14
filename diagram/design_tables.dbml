@@ -1,0 +1,45 @@
+// Use DBML to define your database structure
+// Docs: https://dbml.dbdiagram.io/docs
+
+Table fact_sales_order_line {
+  sales_order_line_key integer [primary key]
+  customer_key integer
+  stock_item_key integer
+  contact_person_key integer
+  picked_by_person_key integer
+  salesperson_person_key integer
+  package_type_key integer
+  order_date_key date
+  expected_delivery_date_key date
+  picking_completed_date_key date
+}
+
+Table dim_stock_item {
+  stock_item_key integer [primary key]
+}
+
+Table dim_customer {
+  customer_key integer [primary key]
+}
+
+Table dim_person {
+  person_key integer [pk]
+}
+
+Table dim_package_type {
+  package_type_key integer [pk]
+}
+
+Table dim_date {
+  date_key integer [pk]
+}
+
+Ref: fact_sales_order_line.customer_key < dim_customer.customer_key
+Ref: fact_sales_order_line.contact_person_key < dim_person.person_key
+Ref: fact_sales_order_line.picked_by_person_key < dim_person.person_key
+Ref: fact_sales_order_line.salesperson_person_key < dim_person.person_key
+Ref: fact_sales_order_line.stock_item_key < dim_stock_item.stock_item_key
+Ref: fact_sales_order_line.package_type_key < dim_package_type.package_type_key
+Ref: fact_sales_order_line.order_date_key < dim_date.date_key
+Ref: fact_sales_order_line.expected_delivery_date_key < dim_date.date_key
+Ref: fact_sales_order_line.picking_completed_date_key < dim_date.date_key

@@ -40,9 +40,11 @@ models:
     intermediate:
       +materialized: view
       +schema: stg
+    # Base Area
     analytics:
       +materialized: table
       +schema: dwh
+    # Mart Area
     marts:
       +materialized: table
       +schema: mart
