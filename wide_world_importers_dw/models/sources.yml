@@ -87,3 +87,18 @@ sources:
             description: ""
             data_type: INTEGER
             nullable: true
+
+      - name: sales__CustomerCategories
+        description: "The categories of customers"
+        columns:
+          - name: CustomerCategoryID
+
+      - name: sales__BuyingGroups
+        description: "The buying groups"
+        columns:
+          - name: BuyingGroupID
+      - name: application__People
+      - name: application__DeliveryMethods
+      - name: application__Cities
+      - name: application__StateProvinces
+      - name: application__Countries
