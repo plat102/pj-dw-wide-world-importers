@@ -50,12 +50,14 @@ select
     , stg_sales_customer.payment_term_days
     , stg_sales_customer.phone_number
     , stg_sales_customer.website_url 
-    , stg_sales_customer.delivery_address_line_1
-    , stg_sales_customer.delivery_address_line_2
+    -- , stg_sales_customer.delivery_address_line_1
+    -- , stg_sales_customer.delivery_address_line_2
+    , concat(stg_sales_customer.delivery_address_line_1, ' ', stg_sales_customer.delivery_address_line_2) as delivery_address
     , stg_sales_customer.delivery_postal_code
     , stg_sales_customer.delivery_location
-    , stg_sales_customer.postal_address_line_1
-    , stg_sales_customer.postal_address_line_2
+    -- , stg_sales_customer.postal_address_line_1
+    -- , stg_sales_customer.postal_address_line_2
+    , concat(stg_sales_customer.postal_address_line_1, ' ', stg_sales_customer.postal_address_line_2) as postal_address
     , stg_sales_customer.postal_postal_code
 from {{ref('stg_sales_customer')}}
 left join {{ref('stg_sales_customer_category')}}
