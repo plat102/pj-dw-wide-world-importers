@@ -102,3 +102,8 @@ sources:
       - name: application__Cities
       - name: application__StateProvinces
       - name: application__Countries
+      - name: warehouse__StockItems
+      - name: purchasing__Suppliers
+      - name: purchasing__SupplierCategories
+      - name: warehouse__Colors
+      - name: warehouse__PackageTypes
