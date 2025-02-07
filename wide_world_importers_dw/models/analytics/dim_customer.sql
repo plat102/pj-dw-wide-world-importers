@@ -1,11 +1,5 @@
-WITH dim_customer__stg as (
-
+with dim_customer_stg as (
+    select *
+    from {{ref('stg_dim_customer_wwi')}}
 )
-
-, dim_customer__rename_column AS (
-
-)
-
-, dim_cusomter__cast_type as (
-    
-)
+select * from dim_customer_stg

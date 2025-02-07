@@ -39,3 +39,37 @@ int_X.sql
 ### Bus Maxtrix
 
 ### Mapping
+
+## Notes
+
+### Convention
+
+#### SQL convention
+
+1. Naming convention
+
+   * **Tables** : `snake_case`, plural for fact tables, singular for dimension table
+   * **Columns**
+   * Indexes
+   * Constraints
+2. Query syntax
+
+   * ✅ **Uppercase SQL keywords**
+   * ✅ **Comma at the beginning of columns in SELECT**
+   * ✅ **Consistent indentation**
+   * Use schema names
+
+   ```SQL
+   SELECT
+       customer_id
+       , SUM(order_total) AS total_sales
+   FROM fact_sales
+   WHERE order_date >= '2024-01-01'
+   GROUP BY customer_id
+   ORDER BY total_sales DESC;
+   ```
+
+### Future enhancements
+
+* Dynamically generate the column selection, renaming & type casting queries using a source-to-target mapping file
+* Design for multiple data source
