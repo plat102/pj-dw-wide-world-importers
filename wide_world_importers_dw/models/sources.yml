@@ -107,3 +107,5 @@ sources:
       - name: purchasing__SupplierCategories
       - name: warehouse__Colors
       - name: warehouse__PackageTypes
+      - name: sales__Orders
+      - name: sales__OrderLines
