@@ -32,11 +32,13 @@ int_X.sql
 /exposures
 ```
 
-## Design
+## Dimensional modelling
 
-### Reuirements
+### Bus Matrix
 
-### Bus Maxtrix
+### High-level design
+
+![1739013064451](image/README/1739013064451.png)
 
 ### Mapping
 
