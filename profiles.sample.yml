@@ -5,7 +5,7 @@ wide_world_importers_dbt:
     dev:
       project: project
       keyfile: keyfile
-      dataset: dataset
+      dataset: "wwi" # prefix of dataset name if schema specified in project/models
       location: asia-southeast1
       type: bigquery
       job_execution_timeout_seconds: 300
