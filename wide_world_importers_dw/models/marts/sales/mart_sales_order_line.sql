@@ -60,6 +60,15 @@ select
 
     -- Package type details
     , dim_package_type.package_type_name as package_type_package_type_name
+
+    -- Date
+    {% for column in date_cols %}
+        , dim_order_date.{{ column }} as order_date_{{ column }}
+        , dim_expected_delivery_date.{{ column }} as expected_delivery_date_{{ column }}
+    {% endfor %}
+    , dim_sales_order_picking_completed_date.full_date as sales_order_picking_completed_date_full_date
+    , dim_sales_order_line_picking_completed_date.full_date as sales_order_line_picking_completed_date_full_date
+
 from {{ ref('fact_sales_order_line') }} as fsol
 left join {{ ref('dim_customer') }}
     on fsol.customer_key = dim_customer.customer_key
@@ -75,3 +84,11 @@ left join {{ ref('dim_stock_item') }}
     on fsol.stock_item_key = dim_stock_item.stock_item_key
 left join {{ ref('dim_package_type') }}
     on fsol.package_type_key = dim_package_type.package_type_key
+left join {{ ref('dim_date') }} as dim_order_date
+    on fsol.order_date_key = dim_order_date.date_key
+left join {{ ref('dim_date') }} as dim_expected_delivery_date
+    on fsol.expected_delivery_date_key = dim_expected_delivery_date.date_key
+left join {{ ref('dim_date') }} as dim_sales_order_picking_completed_date
+    on fsol.sales_order_picking_completed_date_key = dim_sales_order_picking_completed_date.date_key
+left join {{ ref('dim_date') }} as dim_sales_order_line_picking_completed_date
+    on fsol.sales_order_line_picking_completed_date_key = dim_sales_order_line_picking_completed_date.date_key
