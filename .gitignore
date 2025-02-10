@@ -23,3 +23,5 @@ logs/*
 wide_world_importers_dw/profiles*.yml
 
 package-lock.yml
+
+*gitignore*

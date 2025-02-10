@@ -44,6 +44,10 @@ models:
     analytics:
       +materialized: table
       +schema: dwh
+
+      role_playing_dimension:
+        +materialized: view
+        +schema: dwh
     # Mart Area
     marts:
       +materialized: table
