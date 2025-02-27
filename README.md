@@ -1,4 +1,4 @@
-# pj-dw-wide-world-importers
+## pj-dw-wide-world-importers
 
 ### **BigQuery Structure**
 
@@ -47,6 +47,12 @@ int_X.sql
 * Link to [Looker Studio - WWI Reports](https://lookerstudio.google.com/reporting/54a88f82-aeee-494c-b81f-31bb320f299c)
 
 ![1739105996295](image/README/1739105996295.png)
+
+## dlt
+
+```
+dlt init sql_database bigquery
+```
 
 ## Notes
 
