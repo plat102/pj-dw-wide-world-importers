@@ -52,6 +52,7 @@ int_X.sql
 
 ```
 dlt init sql_database bigquery
+dlt pipeline mssql_to_bigquery info
 ```
 
 ## Notes
