@@ -34,15 +34,6 @@ int_X.sql
 
 * analytics: core layer of the data warehouse
 
-## Dimensional modelling
-
-### Bus Matrix
-
-### Data Warehouse Modelling
-![ERD](/docs/image/dwh_model.png)
-
-### Mapping
-
 ## Reports
 
 * Link to [Looker Studio - WWI Reports](https://lookerstudio.google.com/reporting/54a88f82-aeee-494c-b81f-31bb320f299c)
