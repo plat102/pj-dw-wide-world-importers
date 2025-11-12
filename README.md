@@ -38,7 +38,8 @@ int_X.sql
 
 ### Bus Matrix
 
-![1739013064451](image/README/1739013064451.png)
+### Data Warehouse Modelling
+![ERD](/docs/image/dwh_model.png)
 
 ### Mapping
 
@@ -46,7 +47,7 @@ int_X.sql
 
 * Link to [Looker Studio - WWI Reports](https://lookerstudio.google.com/reporting/54a88f82-aeee-494c-b81f-31bb320f299c)
 
-![1739105996295](image/README/1739105996295.png)
+![Example Report](/docs/image/looker_studio.png)
 
 ## dlt
 
