@@ -1,82 +1,134 @@
-## pj-dw-wide-world-importers
+# Wide World Importers Data Warehouse
+> A data warehouse project built from the **Wide World Importers** operational database, designed to consolidate business data into a dimensional model optimized for analytics and visualization.
 
-### **BigQuery Structure**
+[![dbt](https://img.shields.io/badge/dbt-FF694B?logo=dbt&logoColor=white)](https://www.getdbt.com/)
+[![BigQuery](https://img.shields.io/badge/BigQuery-669DF6?logo=google-cloud&logoColor=white)](https://cloud.google.com/bigquery)
+[![SQL Server](https://img.shields.io/badge/SQL%20Server-CC2927?logo=microsoft-sql-server&logoColor=white)](https://www.microsoft.com/sql-server)
+[![Looker Studio](https://img.shields.io/badge/Looker%20Studio-4285F4?logo=looker&logoColor=white)](https://lookerstudio.google.com/)
+[![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 
-**1. Project**
+---
 
-* `thupla-dw-dev`:  the development environment
+## 📊 Overview
 
-**2. Datasets**
+This project consolidates **Wide World Importers** OLTP data into a **BigQuery** data warehouse using **dbt** for transformation and **Looker Studio** for visualization.
 
-* **`wwi_raw`** : ✅ Stores raw data as ingested directly from the source
-* **`wwi_stg`** : ✅ For staging and intermediate models.
-  * Cleaned/standardized data tables.
-  * Join and transform raw tables for analytics preparation.
-* **`wwi_dwh`** : ✅ For finalized models (e.g., facts and dimensions)
+| Layer | Technology | Description |
+|--------|-------------|-------------|
+| **Source** | SQL Server | Wide World Importers OLTP database |
+| **Ingestion** | Manual upload | Data ingestion pipeline to BigQuery. Plan to dlt |
+| **Warehouse** | BigQuery | Cloud data warehouse (raw → staging → DWH → mart) |
+| **Transformation** | dbt Core | Modular ELT transformations, dimensional modeling |
+| **Visualization** | Looker Studio | Interactive dashboards & self-service BI |
 
-### dbt models
+**Business Problem:** Analytical queries slow down the transactional system; business teams rely on IT for ad-hoc reports.  
+**Solution:** A scalable cloud data warehouse with star schema models and self-service BI.  
+**Outcomes:** Faster insights, sub-5s dashboards, and reduced IT dependency.
 
-dbt project /models:
+![Data Warehouse ERD](docs/image/dwh_erd.png)
+*Figure: Dimensional model overview*
+
+---
+
+## 🏗️ Architecture
+
+**Data Flow**
+
+```mermaid
+flowchart LR
+    subgraph source["📦 Source"]
+        OLTP[Wide World Importers<br/>OLTP Database]
+    end
+    
+    subgraph ingest["⚡ Ingestion"]
+        direction TB
+        CSV[<b>Manual Upload<br/>CSV</b>]
+        DLT["(dlt Pipeline)"]
+    end
+    
+    subgraph dwh["☁️ BigQuery<br>Data Warehouse"]
+        direction TB
+        
+        RAW[Raw Layer<br/>wwi_raw]
+        STG[Staging<br/>wwi_stg]
+        ANALYTICS[Analytics<br/>wwi_dwh]
+        MART[Mart<br/>wwi_mart]
+        
+        RAW -->|dbt| STG
+        STG -->|dbt| ANALYTICS
+        ANALYTICS -->|dbt| MART
+    end
+    
+    subgraph bi["📊 Visualization"]
+        LOOKER[Looker Studio<br/>Dashboards]
+    end
+    
+    OLTP --> CSV
+    OLTP -.-> DLT
+    CSV --> RAW
+    DLT -.-> RAW
+    MART ==> LOOKER
+    
+    style OLTP fill:#E8E8E8,stroke:#666,stroke-width:2px,color:#333
+    style CSV fill:#FFE4B5,stroke:#FFA500,stroke-width:2px,color:#333
+    style DLT fill:#FFE4B5,stroke:#FFA500,stroke-width:2px,stroke-dasharray: 5 5,color:#333
+    style RAW fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
+    style STG fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
+    style ANALYTICS fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
+    style MART fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
+    style LOOKER fill:#C8E6C9,stroke:#4CAF50,stroke-width:2px,color:#333
+```
+
+**Data Layers**
+
+- `wwi_raw` - Raw data ingested from source
+- `wwi_stg` - Staging and intermediate transformations
+- `wwi_dwh` - Dimensional models (facts & dimensions)
+- `wwi_mart` - Denormalized reporting datasets
+
+
+---
+
+## 📂 Project Structure
 
 ```
-/staging
----/wide_world_importers
-stg_X.sql
-/analytics
-dim_X.sql
-fact_X.sql
----/marts
-    mart_
-/intermediate
-int_X.sql
-/exposures
+├── docs/                           # Project documentation
+├── etl/                            # Data ingestion scripts
+├── wide_world_importers_dw/        # dbt project
+│   ├── models/
+│   │   ├── staging/                # Source data standardization
+│   │   ├── analytics/              # Dimensional models (dim_*, fact_*)
+│   │   └── marts/                  # Denormalized reporting datasets
+│   └── dbt_project.yml
+└── scripts/                        # Utility SQL scripts
 ```
 
-* analytics: core layer of the data warehouse
+## 📈 Sample Reports
 
-## Reports
+[View Live Dashboard](https://lookerstudio.google.com/reporting/54a88f82-aeee-494c-b81f-31bb320f299c)
 
-* Link to [Looker Studio - WWI Reports](https://lookerstudio.google.com/reporting/54a88f82-aeee-494c-b81f-31bb320f299c)
+![Looker Studio Example](docs/image/looker_studio.png)
 
-![Example Report](/docs/image/looker_studio.png)
+## 📚 Documentation
 
-## dlt
+- [Project Roadmap](docs/project_roadmap.md) - Business context, objectives, status, and future plans
+- [Technical Design](docs/technical_design.md) - Architecture and technology stack
+- [Data Modeling](docs/data_modelling.md) - Dimensional model design
+- [Data Catalog](docs/data_warehouse_catalog.md) - Table and column definitions
+- [Naming Conventions](docs/naming_convention.md) - Standards and best practices
 
-```
-dlt init sql_database bigquery
-dlt pipeline mssql_to_bigquery info
-```
+## 🚀 Quick Start
 
-## Notes
+**Requirements:** Python 3.9+, dbt-bigquery, GCP credentials
 
-### Convention
+```bash
+# Install dependencies
+pip install -r requirements.txt
 
-#### SQL convention
+# Configure dbt
+cp profiles.sample.yml ~/.dbt/profiles.yml
 
-1. Naming convention
-
-   * **Tables** : `snake_case`, plural for fact tables, singular for dimension table
-   * **Columns**
-   * Indexes
-   * Constraints
-2. Query syntax
-
-   * ✅ **Uppercase SQL keywords**
-   * ✅ **Comma at the beginning of columns in SELECT**
-   * ✅ **Consistent indentation**
-   * Use schema names
-
-   ```SQL
-   SELECT
-       customer_id
-       , SUM(order_total) AS total_sales
-   FROM fact_sales
-   WHERE order_date >= '2024-01-01'
-   GROUP BY customer_id
-   ORDER BY total_sales DESC;
-   ```
-
-### Future enhancements
-
-* Dynamically generate the column selection, renaming & type casting queries using a source-to-target mapping file
-* Design for multiple data source
+# Run models & tests
+cd wide_world_importers_dw
+dbt run
+dbt test
