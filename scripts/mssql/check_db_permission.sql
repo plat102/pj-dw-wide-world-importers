@@ -1,4 +1,4 @@
--- View the effective permissions of airbyte_user on the database
+-- View the effective permissions of wwi_extract on the database
 SELECT
     dp.name AS UserName,
     dp.type_desc AS UserType,
@@ -12,7 +12,7 @@ LEFT JOIN
 LEFT JOIN
     sys.objects o ON o.object_id = p.major_id
 WHERE
-    dp.name = 'airbyte_user';
+    dp.name = 'wwi_extract';
 
 -- Verify schema permissions for 'Sales' and other schemas
 SELECT
@@ -28,7 +28,7 @@ LEFT JOIN
 LEFT JOIN
     sys.schemas s ON s.schema_id = p.major_id
 WHERE
-    dp.name = 'airbyte_user';
+    dp.name = 'wwi_extract';
 
 
 SELECT
@@ -43,7 +43,7 @@ LEFT JOIN
 LEFT JOIN
     sys.objects o ON o.object_id = p.major_id
 WHERE
-    dp.name = 'airbyte_user' AND p.state_desc = 'DENY';
+    dp.name = 'wwi_extract' AND p.state_desc = 'DENY';
 
 SELECT
     schemas.name AS SchemaName,
@@ -70,4 +70,7 @@ JOIN
 WHERE
     m.is_masked = 1;
 
-GRANT UNMASK TO airbyte_user;
+-- Diagnostic only: this lists masked columns, it does not change them.
+-- A previous version ended with GRANT UNMASK. Do not add it back — ingest masked
+-- values and unmask at the serving layer instead.
+

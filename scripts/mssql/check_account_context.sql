@@ -9,7 +9,7 @@ SELECT
 
 -- 2 Permissions: If this works, the issue might be with how the connection is being established (e.g., the application connection string).
 USE [WideWorldImporters];
-EXECUTE AS USER = 'airbyte_user';
+EXECUTE AS USER = 'wwi_extract';
 
 -- Test access
 SELECT * FROM Sales.Orders;

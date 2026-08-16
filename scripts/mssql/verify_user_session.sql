@@ -7,7 +7,7 @@ SELECT
 FROM
     sys.dm_exec_sessions
 WHERE
-    login_name = 'airbyte_user';
+    login_name = 'wwi_extract';
 
 
 SELECT
@@ -23,4 +23,4 @@ SELECT
 FROM
     sys.dm_exec_sessions
 WHERE
-    session_id = @@SPID or login_name = 'airbyte_user';
+    session_id = @@SPID or login_name = 'wwi_extract';
