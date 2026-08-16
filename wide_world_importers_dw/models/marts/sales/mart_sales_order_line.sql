@@ -7,7 +7,7 @@
         from=ref('fact_sales_order_line'),
         except=[
             'customer_key',
-            'bill_to_customer_key'
+            'bill_to_customer_key',
             'salesperson_key', 'picked_by_person_key', 'contact_person_key',
             'stock_item_key',
             'package_type_key',
@@ -37,7 +37,7 @@
 ) %}
 
 select
-    {{ fact_cols | join(', fsol.') }},
+    fsol.{{ fact_cols | join(', fsol.') }},
 
     -- Customer details
     {% for column in customer_cols %}

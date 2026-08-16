@@ -6,9 +6,9 @@
 select
     person_key as picked_by_person_key
     , person_full_name as picked_by_person_full_name
-    , person_preferred_name as picked_by_picked_by_preferred_name
-    {% for column in date_cols %}
-        {{ column }} as picked_by_{{ column }} {% if not loop.last %},{% endif %}
+    , person_preferred_name as picked_by_preferred_name
+    {% for column in person_cols %}
+        , {{ column }} as picked_by_{{ column }}
     {% endfor %}
     , is_system_user
     , is_employee

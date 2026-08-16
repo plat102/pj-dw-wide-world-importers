@@ -14,8 +14,8 @@ select
     person_key as salesperson_person_key
     , person_full_name as salesperson_full_name
     , person_preferred_name as salesperson_preferred_name
-    {% for column in date_cols %}
-        {{ column }} as salesperson_{{ column }} {% if not loop.last %},{% endif %}
+    {% for column in person_cols %}
+        , {{ column }} as salesperson_{{ column }}
     {% endfor %}
     , is_system_user
     , is_employee

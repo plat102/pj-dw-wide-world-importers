@@ -8,8 +8,8 @@ select
     person_key as contact_person_key
     , person_full_name as contact_full_name
     , person_preferred_name as contact_preferred_name
-    {% for column in date_cols %}
-        {{ column }} as contact_{{ column }} {% if not loop.last %},{% endif %}
+    {% for column in person_cols %}
+        , {{ column }} as contact_{{ column }}
     {% endfor %}
     , is_system_user
     , is_employee
