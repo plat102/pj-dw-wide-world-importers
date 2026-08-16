@@ -7,12 +7,13 @@ requires-python = ">=3.11"
 dependencies = [
     # transform
     "dbt-core==1.12.2",
-    "dbt-bigquery==1.12.0",   # Phase 1, frozen. Drop after the DuckDB port.
+    "dbt-bigquery==1.12.0",   # frozen exhibit; drop after the DuckDB port
     # extract: MSSQL -> Parquet
     "dlt[sql-database]>=1.7.0",
     "pymssql>=2.3",           # not pyodbc: needs ODBC Driver 18, broken on WSL2
     "pyarrow>=15",
     "python-dotenv>=1.0",
+    "pyyaml>=6",
 ]
 
 [tool.uv]
