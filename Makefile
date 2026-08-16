@@ -3,8 +3,10 @@
 DBT_DIR := wide_world_importers_dw
 PROFILES_ARG := $(if $(PROFILES_DIR),--profiles-dir $(PROFILES_DIR),)
 DBT := uv run dbt
+SNAPSHOT_DB := WWI_Snap
+EXTRACT_LOGIN := wwi_extract
 
-.PHONY: install deps parse run_dbt test_dbt build run_etl dlt_pl_list run_dlt full_pipeline
+.PHONY: install deps parse run_dbt test_dbt build snapshot_create snapshot_drop extract manifest verify
 
 install:
 	uv sync --frozen
@@ -24,13 +26,19 @@ test_dbt:
 build:
 	$(DBT) build --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
 
-run_etl:
-	uv run python etl/dlt_mssql_to_bigquery.py
+snapshot_create:
+	sqlcmd -S localhost -U sa -C -v SOURCE_DB="WideWorldImporters" -v SNAPSHOT_DB="$(SNAPSHOT_DB)" -v EXTRACT_LOGIN="$(EXTRACT_LOGIN)" -i scripts/mssql/create_source_snapshot.sql
 
-dlt_pl_list:
-	uv run dlt pipeline --list-pipelines
+snapshot_drop:
+	sqlcmd -S localhost -U sa -C -v SNAPSHOT_DB="$(SNAPSHOT_DB)" -i scripts/mssql/drop_source_snapshot.sql
 
-run_dlt:
-	uv run dlt pipeline mssql_to_bigquery sync
+extract: snapshot_create
+	uv run python etl/dlt_mssql_to_parquet.py --snapshot-db $(SNAPSHOT_DB) --output-dir data/raw
+	$(MAKE) snapshot_drop
+	$(MAKE) manifest
 
-full_pipeline: run_etl run_dbt
+manifest:
+	uv run python scripts/generate_manifest.py
+
+verify:
+	uv run python scripts/verify_snapshot.py

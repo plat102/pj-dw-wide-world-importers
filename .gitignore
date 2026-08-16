@@ -28,3 +28,8 @@ package-lock.yml
 
 *.env
 */secrets/*
+# Parquet snapshot: a release asset, never repository content
+data/raw/
+
+__pycache__/
+*.py[cod]
