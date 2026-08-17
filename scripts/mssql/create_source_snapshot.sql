@@ -50,6 +50,43 @@ BEGIN
 END
 GO
 
+-- Refuse to freeze a database still in DataLoadSimulation load mode. Load mode turns
+-- system versioning off and the territory security policy off, so rows changed under it
+-- reach no history table. Catching it here avoids creating sparse files for a snapshot
+-- that would have to be thrown away; the extractor repeats the two checks the read-only
+-- login can see, because a hand-made snapshot never runs this script.
+DECLARE @versioned int, @archives int, @enabled_policies int, @durability nvarchar(60);
+
+SELECT @versioned = COUNT(CASE WHEN temporal_type = 2 THEN 1 END),
+       @archives  = COUNT(CASE WHEN name LIKE '%[_]Archive' THEN 1 END)
+FROM sys.tables;
+
+SELECT @enabled_policies = COUNT(*) FROM sys.security_policies WHERE is_enabled = 1;
+
+SELECT @durability = delayed_durability_desc
+FROM sys.databases WHERE name = '$(SOURCE_DB)';
+
+IF @versioned <> @archives
+BEGIN
+    RAISERROR('%s has %d versioned tables but %d archive tables; run DataLoadSimulation.ReactivateTemporalTablesAfterDataLoad first',
+              16, 1, '$(SOURCE_DB)', @versioned, @archives);
+    SET NOEXEC ON;
+END
+ELSE IF @enabled_policies <> 1
+BEGIN
+    -- One policy: Application.FilterCustomersBySalesTerritoryRole. Load mode switches it off.
+    RAISERROR('%s has %d enabled security policies, expected 1; run DataLoadSimulation.Configuration_RemoveDataLoadSimulationProcedures first',
+              16, 1, '$(SOURCE_DB)', @enabled_policies);
+    SET NOEXEC ON;
+END
+ELSE IF @durability <> N'DISABLED'
+BEGIN
+    RAISERROR('%s has DELAYED_DURABILITY = %s, expected DISABLED; it is still configured for bulk generation',
+              16, 1, '$(SOURCE_DB)', @durability);
+    SET NOEXEC ON;
+END
+GO
+
 USE master;
 GO
 

@@ -71,6 +71,45 @@ def count_source_rows(engine, tables: list[dict]) -> dict[str, int]:
     return counts
 
 
+def assert_out_of_load_mode(conn, snapshot_db: str) -> None:
+    """Refuse a snapshot frozen while the source was in data-load mode.
+
+    Load mode switches system versioning off, so rows changed under it are never
+    written to history. A snapshot freezes that state, which is why the assertion
+    belongs here and not only where the snapshot is created.
+    """
+    import sqlalchemy as sa
+
+    # Every history table in WWI is named `*_Archive`, so the two counts agree
+    # unless versioning was turned off. No baseline number to keep in sync.
+    versioned, archives = conn.execute(
+        sa.text(
+            "SELECT COUNT(CASE WHEN temporal_type = 2 THEN 1 END), "
+            "       COUNT(CASE WHEN name LIKE '%[_]Archive' THEN 1 END) "
+            "FROM sys.tables"
+        )
+    ).fetchone()
+    if versioned != archives:
+        sys.exit(
+            f"{snapshot_db}: {versioned} versioned tables but {archives} archive tables -- "
+            "the source was in load mode. Run "
+            "DataLoadSimulation.ReactivateTemporalTablesAfterDataLoad and "
+            "Configuration_RemoveDataLoadSimulationProcedures on the source, "
+            "then drop the snapshot and take it again"
+        )
+
+    durability = conn.execute(
+        sa.text("SELECT delayed_durability_desc FROM sys.databases WHERE name = :db"),
+        {"db": snapshot_db},
+    ).scalar()
+    if durability != "DISABLED":
+        sys.exit(
+            f"{snapshot_db}: DELAYED_DURABILITY is {durability}, not DISABLED -- the source "
+            "was still configured for bulk generation. Set it back, drop the snapshot "
+            "and take it again"
+        )
+
+
 def inspect_source(conn_str: str, snapshot_db: str) -> dict[str, str]:
     """Verify the target is a snapshot and read the facts the manifest needs."""
     import sqlalchemy as sa
@@ -85,6 +124,8 @@ def inspect_source(conn_str: str, snapshot_db: str) -> dict[str, str]:
             sys.exit(f"{snapshot_db} does not exist -- run scripts/mssql/create_source_snapshot.sql")
         if row[0] is None:
             sys.exit(f"{snapshot_db} is a live database, not a snapshot; refusing to extract")
+
+        assert_out_of_load_mode(conn, snapshot_db)
 
         version = conn.execute(
             sa.text(
