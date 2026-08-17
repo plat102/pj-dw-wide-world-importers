@@ -1,14 +1,15 @@
-# Generated from data/snapshots/manifest.json -- the manifest holds the authoritative
-# column names and types, so change it there and regenerate rather than hand-editing here.
+# GENERATED -- do not hand-edit. Regenerate with `make sources` after a new extraction.
+# The manifest is authoritative for column names and types; this file is a projection of it.
 version: 2
 sources:
   - name: wwi_raw
-    description: "Wide World Importers OLTP, frozen as a Parquet snapshot (21 tables, 1,039,312 rows, schema_version 1)."
+    description: >
+      Wide World Importers OLTP, frozen as a Parquet snapshot. Row counts, sizes and checksums
+      live in data/snapshots/manifest.json, which is authoritative; they are not repeated here.
     meta:
       external_location: "read_parquet('data/raw/{name}.parquet')"
     tables:
       - name: application__cities
-        description: "37,940 rows in the snapshot."
         columns:
           - name: city_id
             data_type: BIGINT
@@ -25,7 +26,6 @@ sources:
           - name: valid_to
             data_type: TIMESTAMP
       - name: application__countries
-        description: "190 rows in the snapshot."
         columns:
           - name: country_id
             data_type: BIGINT
@@ -54,7 +54,6 @@ sources:
           - name: valid_to
             data_type: TIMESTAMP
       - name: application__delivery_methods
-        description: "10 rows in the snapshot."
         columns:
           - name: delivery_method_id
             data_type: BIGINT
@@ -67,7 +66,6 @@ sources:
           - name: valid_to
             data_type: TIMESTAMP
       - name: application__people
-        description: "1,134 rows in the snapshot."
         columns:
           - name: person_id
             data_type: BIGINT
@@ -108,7 +106,6 @@ sources:
           - name: valid_to
             data_type: TIMESTAMP
       - name: application__state_provinces
-        description: "53 rows in the snapshot."
         columns:
           - name: state_province_id
             data_type: BIGINT
@@ -129,7 +126,6 @@ sources:
           - name: valid_to
             data_type: TIMESTAMP
       - name: application__transaction_types
-        description: "13 rows in the snapshot."
         columns:
           - name: transaction_type_id
             data_type: BIGINT
@@ -142,7 +138,6 @@ sources:
           - name: valid_to
             data_type: TIMESTAMP
       - name: purchasing__purchase_order_lines
-        description: "13,093 rows in the snapshot."
         columns:
           - name: purchase_order_line_id
             data_type: BIGINT
@@ -169,7 +164,6 @@ sources:
           - name: last_edited_when
             data_type: TIMESTAMP
       - name: purchasing__purchase_orders
-        description: "3,212 rows in the snapshot."
         columns:
           - name: purchase_order_id
             data_type: BIGINT
@@ -196,7 +190,6 @@ sources:
           - name: last_edited_when
             data_type: TIMESTAMP
       - name: purchasing__supplier_categories
-        description: "9 rows in the snapshot."
         columns:
           - name: supplier_category_id
             data_type: BIGINT
@@ -209,7 +202,6 @@ sources:
           - name: valid_to
             data_type: TIMESTAMP
       - name: purchasing__suppliers
-        description: "13 rows in the snapshot."
         columns:
           - name: supplier_id
             data_type: BIGINT
@@ -268,7 +260,6 @@ sources:
           - name: valid_to
             data_type: TIMESTAMP
       - name: sales__buying_groups
-        description: "2 rows in the snapshot."
         columns:
           - name: buying_group_id
             data_type: BIGINT
@@ -281,7 +272,6 @@ sources:
           - name: valid_to
             data_type: TIMESTAMP
       - name: sales__customer_categories
-        description: "8 rows in the snapshot."
         columns:
           - name: customer_category_id
             data_type: BIGINT
@@ -294,7 +284,6 @@ sources:
           - name: valid_to
             data_type: TIMESTAMP
       - name: sales__customers
-        description: "686 rows in the snapshot."
         columns:
           - name: customer_id
             data_type: BIGINT
@@ -357,7 +346,6 @@ sources:
           - name: valid_to
             data_type: TIMESTAMP
       - name: sales__invoices
-        description: "113,225 rows in the snapshot."
         columns:
           - name: invoice_id
             data_type: BIGINT
@@ -410,7 +398,6 @@ sources:
           - name: last_edited_when
             data_type: TIMESTAMP
       - name: sales__order_lines
-        description: "371,369 rows in the snapshot."
         columns:
           - name: order_line_id
             data_type: BIGINT
@@ -437,7 +424,6 @@ sources:
           - name: last_edited_when
             data_type: TIMESTAMP
       - name: sales__orders
-        description: "118,479 rows in the snapshot."
         columns:
           - name: order_id
             data_type: BIGINT
@@ -472,7 +458,6 @@ sources:
           - name: last_edited_when
             data_type: TIMESTAMP
       - name: warehouse__colors
-        description: "36 rows in the snapshot."
         columns:
           - name: color_id
             data_type: BIGINT
@@ -485,7 +470,6 @@ sources:
           - name: valid_to
             data_type: TIMESTAMP
       - name: warehouse__package_types
-        description: "14 rows in the snapshot."
         columns:
           - name: package_type_id
             data_type: BIGINT
@@ -498,7 +482,6 @@ sources:
           - name: valid_to
             data_type: TIMESTAMP
       - name: warehouse__stock_item_transactions
-        description: "379,155 rows in the snapshot."
         columns:
           - name: stock_item_transaction_id
             data_type: BIGINT
@@ -523,7 +506,6 @@ sources:
           - name: last_edited_when
             data_type: TIMESTAMP
       - name: warehouse__stock_items
-        description: "227 rows in the snapshot."
         columns:
           - name: stock_item_id
             data_type: BIGINT
@@ -574,7 +556,6 @@ sources:
           - name: valid_to
             data_type: TIMESTAMP
       - name: warehouse__stock_items_archive
-        description: "444 rows in the snapshot."
         columns:
           - name: stock_item_id
             data_type: BIGINT
