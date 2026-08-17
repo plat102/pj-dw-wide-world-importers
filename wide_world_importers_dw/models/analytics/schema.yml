@@ -1,0 +1,147 @@
+version: 2
+
+models:
+  - name: dim_customer
+    description: "Customer, with category, buying group, contacts, delivery method and delivery city flattened on."
+    columns:
+      - name: customer_key
+        description: "Natural key from Sales.Customers."
+        data_tests: [unique, not_null]
+      - name: bill_to_customer_key
+        description: "The customer this one is invoiced through; often itself."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_key
+
+  - name: dim_person
+    description: "Person, covering system users, employees and salespeople alike."
+    columns:
+      - name: person_key
+        data_tests: [unique, not_null]
+
+  - name: dim_stock_item
+    description: "Stock item, with package types, colour and supplier flattened on."
+    columns:
+      - name: stock_item_sk
+        description: "Surrogate key. One row per version once SCD2 lands; today one per item."
+        data_tests: [unique, not_null]
+      - name: stock_item_key
+        description: "Natural key from Warehouse.StockItems."
+        data_tests: [unique, not_null]
+
+  - name: dim_package_type
+    columns:
+      - name: package_type_key
+        data_tests: [unique, not_null]
+
+  - name: dim_date
+    description: "Date spine, 2000-01-01 to 2050-12-31. Keyed yyyymmdd as a string."
+    columns:
+      - name: date_key
+        data_tests: [unique, not_null]
+      - name: full_date
+        data_tests: [unique, not_null]
+
+  - name: dim_contact_person
+    columns:
+      - name: contact_person_key
+        data_tests: [unique, not_null]
+
+  - name: dim_picked_by_person
+    columns:
+      - name: picked_by_person_key
+        data_tests: [unique, not_null]
+
+  - name: dim_salesperson_person
+    description: "dim_person filtered to salespeople. A role-playing view, not a separate dimension."
+    columns:
+      - name: salesperson_person_key
+        data_tests: [unique, not_null]
+
+  - name: fact_sales_order_line
+    description: "One row per order line. The grain the whole star hangs off."
+    columns:
+      - name: sales_order_line_key
+        description: "Natural key from Sales.OrderLines. The declared grain."
+        data_tests: [unique, not_null]
+      - name: sales_order_key
+        data_tests: [not_null]
+
+      # Ten foreign keys, not the eight this change first counted: the two
+      # picking-completed dates are date keys too, and they resolve to dim_date.
+      - name: customer_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_key
+      - name: bill_to_customer_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_key
+      - name: stock_item_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_stock_item')
+                field: stock_item_key
+      - name: package_type_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_package_type')
+                field: package_type_key
+      - name: salesperson_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_person')
+                field: person_key
+      - name: picked_by_person_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_person')
+                field: person_key
+      - name: contact_person_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_person')
+                field: person_key
+      - name: order_date_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: expected_delivery_date_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: sales_order_picking_completed_date_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: sales_order_line_picking_completed_date_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key

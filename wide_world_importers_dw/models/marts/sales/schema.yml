@@ -1,0 +1,155 @@
+version: 2
+
+models:
+  - name: mart_sales_order_line
+    description: >
+      One row per sales order line with every dimension flattened on. Same grain as
+      fact_sales_order_line; if the row counts ever diverge, a dimension has a duplicate key.
+      This is the published surface of the warehouse, so the column list is a contract:
+      an upstream change that would alter it fails the build instead of arriving silently.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: sales_order_line_key
+        description: "The grain. Carried through from the fact unchanged."
+        data_type: bigint
+        data_tests: [unique, not_null]
+      - name: sales_order_key
+        data_type: bigint
+      - name: quantity
+        data_type: bigint
+      - name: unit_price
+        data_type: decimal(18,2)
+      - name: tax_rate
+        data_type: decimal(18,3)
+      - name: picked_quantity
+        data_type: bigint
+      - name: backorder_order_key
+        data_type: bigint
+      - name: is_undersupply_backordered
+        data_type: boolean
+      - name: sales_order_line_processed_at
+        data_type: timestamp with time zone
+      - name: customer_customer_name
+        data_type: varchar
+      - name: customer_customer_category_name
+        data_type: varchar
+      - name: customer_buying_group_name
+        data_type: varchar
+      - name: customer_primary_contact_full_name
+        data_type: varchar
+      - name: customer_primary_contact_is_system_user
+        data_type: boolean
+      - name: customer_primary_contact_is_employee
+        data_type: boolean
+      - name: customer_primary_contact_is_salesperson
+        data_type: boolean
+      - name: customer_primary_contact_phone_number
+        data_type: varchar
+      - name: customer_primary_contact_email_address
+        data_type: varchar
+      - name: customer_alternate_contact_full_name
+        data_type: varchar
+      - name: customer_delivery_method_name
+        data_type: varchar
+      - name: customer_delivery_city_name
+        data_type: varchar
+      - name: customer_delivery_state_province_name
+        data_type: varchar
+      - name: customer_delivery_state_province_population
+        data_type: bigint
+      - name: customer_delivery_country_name
+        data_type: varchar
+      - name: customer_delivery_country_formal_name
+        data_type: varchar
+      - name: customer_delivery_country_type
+        data_type: varchar
+      - name: customer_delivery_country_population
+        data_type: bigint
+      - name: customer_credit_limit
+        data_type: decimal(18,2)
+      - name: customer_standard_discount_percentage
+        data_type: decimal(18,3)
+      - name: customer_is_on_credit_hold
+        data_type: boolean
+      - name: customer_payment_term_days
+        data_type: bigint
+      - name: customer_phone_number
+        data_type: varchar
+      - name: customer_website_url
+        data_type: varchar
+      - name: customer_delivery_address
+        data_type: varchar
+      - name: customer_delivery_postal_code
+        data_type: varchar
+      - name: customer_postal_address
+        data_type: varchar
+      - name: customer_postal_postal_code
+        data_type: varchar
+      - name: bill_to_customer_name
+        data_type: varchar
+      - name: salesperson_person_full_name
+        data_type: varchar
+      - name: picked_by_person_person_full_name
+        data_type: varchar
+      - name: contact_person_person_full_name
+        data_type: varchar
+      - name: stock_item_name
+        data_type: varchar
+      - name: color_name
+        data_type: varchar
+      - name: supplier_name
+        data_type: varchar
+      - name: is_chiller_stock
+        data_type: boolean
+      - name: package_type_package_type_name
+        data_type: varchar
+      - name: order_date_full_date
+        data_type: date
+      - name: expected_delivery_date_full_date
+        data_type: date
+      - name: order_date_year
+        data_type: bigint
+      - name: expected_delivery_date_year
+        data_type: bigint
+      - name: order_date_year_week
+        data_type: bigint
+      - name: expected_delivery_date_year_week
+        data_type: bigint
+      - name: order_date_year_day
+        data_type: bigint
+      - name: expected_delivery_date_year_day
+        data_type: bigint
+      - name: order_date_fiscal_year
+        data_type: bigint
+      - name: expected_delivery_date_fiscal_year
+        data_type: bigint
+      - name: order_date_fiscal_qtr
+        data_type: varchar
+      - name: expected_delivery_date_fiscal_qtr
+        data_type: varchar
+      - name: order_date_month
+        data_type: bigint
+      - name: expected_delivery_date_month
+        data_type: bigint
+      - name: order_date_month_name
+        data_type: varchar
+      - name: expected_delivery_date_month_name
+        data_type: varchar
+      - name: order_date_week_day
+        data_type: bigint
+      - name: expected_delivery_date_week_day
+        data_type: bigint
+      - name: order_date_day_name
+        data_type: varchar
+      - name: expected_delivery_date_day_name
+        data_type: varchar
+      - name: order_date_day_is_weekday
+        data_type: integer
+      - name: expected_delivery_date_day_is_weekday
+        data_type: integer
+      - name: sales_order_picking_completed_date_full_date
+        data_type: date
+      - name: sales_order_line_picking_completed_date_full_date
+        data_type: date
