@@ -10,8 +10,9 @@ dependencies = [
     "dbt-duckdb",             # the warehouse engine; version left to the resolver
     "duckdb",
     "dbt-bigquery==1.12.0",   # frozen exhibit; drop after the DuckDB port
-    # extract: MSSQL -> Parquet
+    # extract: MSSQL -> Parquet on the object store
     "dlt[sql-database]>=1.7.0",
+    "s3fs>=2024.6",           # dlt's filesystem destination cannot write s3:// without it
     "pymssql>=2.3",           # not pyodbc: needs ODBC Driver 18, broken on WSL2
     "pyarrow>=15",
     "python-dotenv>=1.0",

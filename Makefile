@@ -12,7 +12,7 @@ DBT := uv run dbt
 SNAPSHOT_DB := WWI_Snap
 EXTRACT_LOGIN := wwi_extract
 
-.PHONY: up down clean_storage storage_status storage_wait install deps parse run_dbt test_dbt build snapshot_create snapshot_drop extract manifest sources sources_check verify compare shape
+.PHONY: up down clean_storage storage_status storage_wait seed_bronze seed_bronze_check install deps parse run_dbt test_dbt build snapshot_create snapshot_drop extract manifest sources sources_check verify compare shape
 
 # --- storage layer ----------------------------------------------------------------------
 # The object store and the DuckLake catalog. Credentials come from .env, which compose reads
@@ -38,6 +38,15 @@ storage_status:
 
 storage_wait:
 	uv run python scripts/wait_for_storage.py
+
+# Puts the local snapshot on the store. Verifies each object's SHA256 against the manifest after
+# writing, because a count of uploaded files says nothing about their contents.
+seed_bronze:
+	uv run python scripts/seed_bronze.py
+
+# Same verification, upload nothing. What CI runs before a build.
+seed_bronze_check:
+	uv run python scripts/seed_bronze.py --check
 
 # --- python + dbt -----------------------------------------------------------------------
 

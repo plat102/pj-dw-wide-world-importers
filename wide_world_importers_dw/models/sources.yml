@@ -4,10 +4,14 @@ version: 2
 sources:
   - name: wwi_raw
     description: >
-      Wide World Importers OLTP, frozen as a Parquet snapshot. Row counts, sizes and checksums
-      live in data/snapshots/manifest.json, which is authoritative; they are not repeated here.
+      Wide World Importers OLTP, frozen as a Parquet snapshot on the object store. Row counts,
+      sizes and checksums live in data/snapshots/manifest.json, which is authoritative; they are
+      not repeated here.
     meta:
-      external_location: "read_parquet('data/raw/{name}.parquet')"
+      # The snapshot is addressed as s3:// in every environment. Only the endpoint and the
+      # credentials differ between a laptop, CI and a real cloud bucket -- and those live in the
+      # dbt profile, not here. Nothing in this file names the store behind the API.
+      external_location: "read_parquet('s3://{{ env_var('S3_BUCKET', 'wwi') }}/bronze/{name}.parquet')"
     tables:
       - name: application__cities
         columns:

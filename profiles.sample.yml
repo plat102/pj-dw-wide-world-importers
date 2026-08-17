@@ -1,18 +1,36 @@
 # Copy to ~/.dbt/profiles.yml (or set DBT_PROFILES_DIR).
 # The top-level key must match `profile:` in wide_world_importers_dw/dbt_project.yml.
-# The default target is `duckdb` and needs no credential at all -- nothing to fill in.
-# Only the `dev` (BigQuery) target needs a project and a keyfile; never commit that filled-in file.
+#
+# Every value comes from the environment, so this file holds no credential and the copy you fill
+# in holds none either -- there is nothing to fill in. Put the values in `.env`, which is
+# git-ignored; `make` exports it. See .env.example.
+#
+# The `dev` (BigQuery) target is the one exception: it needs a project and a keyfile written in.
+# It is a frozen exhibit and nothing builds against it. Never commit that filled-in file.
 # Docs: https://docs.getdbt.com/docs/get-started/connection-profiles
 
 wide_world_importers_dw:
   outputs:
-    # Phase 2 target. Reads the Parquet snapshot; writes a local database file.
-    # Relative paths resolve against the working directory, and the Makefile runs dbt
-    # from the repository root, so this lands next to the Makefile.
+    # Default target. Reads the Parquet snapshot from the object store and writes a local
+    # database file. Relative paths resolve against the working directory, and the Makefile runs
+    # dbt from the repository root, so this lands next to the Makefile.
     duckdb:
       type: duckdb
       path: "{{ env_var('DUCKDB_PATH', 'wwi.duckdb') }}"
       threads: 4
+      extensions:
+        - httpfs
+      secrets:
+        # The store is reached over the S3 API and named nowhere above docker-compose.yml.
+        # Only the endpoint changes between this store, another S3-compatible one, and a real
+        # cloud bucket.
+        - type: s3
+          key_id: "{{ env_var('S3_ACCESS_KEY') }}"
+          secret: "{{ env_var('S3_SECRET_KEY') }}"
+          endpoint: "{{ env_var('S3_ENDPOINT', 'localhost:8333') }}"
+          # path style, not virtual-host style: a local store has no per-bucket DNS.
+          url_style: path
+          use_ssl: "{{ env_var('S3_USE_SSL', 'false') }}"
     dev:
       type: bigquery
       method: service-account
