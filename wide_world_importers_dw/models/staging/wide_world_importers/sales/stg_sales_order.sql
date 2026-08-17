@@ -23,7 +23,7 @@ with raw as (
 , raw__add_cursor_timestamp as (
     select 
         *
-        , current_timestamp as processed_at
+        , {{ snapshot_processed_at() }} as processed_at
     from raw__select_column
     -- cursor timestamp should be loaded time of the data into data lake
     -- this is just a workaround
