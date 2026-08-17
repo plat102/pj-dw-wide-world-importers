@@ -13,13 +13,13 @@ select
     strftime(full_date, '%Y%m%d') as date_key,
     full_date,
     extract(year from full_date) as year,
-    extract(year from full_date) * 100 + extract(week from full_date) as year_week,
+    extract(isoyear from full_date) * 100 + extract(week from full_date) as year_week,
     extract(year from full_date) * 1000 + extract(dayofyear from full_date) as year_day,
     case
         when extract(month from full_date) >= 4 then extract(year from full_date) + 1
         else extract(year from full_date)
     end as fiscal_year,
-    concat('Q', cast((extract(month from full_date) - 1) // 3 + 1 as varchar)) as fiscal_qtr,
+    concat('Q', cast(((extract(month from full_date) - 4 + 12) % 12) // 3 + 1 as varchar)) as fiscal_qtr,
     extract(month from full_date) as month,
     strftime(full_date, '%B') as month_name,
     extract(dayofweek from full_date) + 1 as week_day,
