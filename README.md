@@ -119,16 +119,28 @@ flowchart LR
 
 ## 🚀 Quick Start
 
-**Requirements:** Python 3.9+, dbt-bigquery, GCP credentials
+**Requirements:** Python 3.11+ and [uv](https://docs.astral.sh/uv/). No cloud account, and no SQL
+Server unless you want to refresh the snapshot.
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install the pinned environment
+make install
 
-# Configure dbt
+# Point dbt at a profile (the duckdb target is the default)
 cp profiles.sample.yml ~/.dbt/profiles.yml
 
-# Run models & tests
-cd wide_world_importers_dw
-dbt run
-dbt test
+# Check the Parquet snapshot against its manifest, then build
+make verify
+make build
+```
+
+`make build` writes `wwi.duckdb` in the repository root and runs 26 models and 50 tests. Query it
+with `duckdb wwi.duckdb`, or run `make shape` to see every relation with its row and column count.
+
+Two more worth knowing:
+
+```bash
+make shape      # every relation with its row and column count
+make compare    # build twice, diff every relation -- proves the build is deterministic
+make extract    # refresh the snapshot from SQL Server; needs the source and sa
+```
