@@ -54,7 +54,6 @@ select
     -- , stg_sales_customer.delivery_address_line_2
     , concat(stg_sales_customer.delivery_address_line_1, ' ', stg_sales_customer.delivery_address_line_2) as delivery_address
     , stg_sales_customer.delivery_postal_code
-    , stg_sales_customer.delivery_location
     -- , stg_sales_customer.postal_address_line_1
     -- , stg_sales_customer.postal_address_line_2
     , concat(stg_sales_customer.postal_address_line_1, ' ', stg_sales_customer.postal_address_line_2) as postal_address

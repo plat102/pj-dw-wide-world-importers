@@ -31,5 +31,9 @@ package-lock.yml
 # Parquet snapshot: a release asset, never repository content
 data/raw/
 
+# DuckDB build output: rebuilt from the snapshot by `dbt build`, never committed
+*.duckdb
+*.duckdb.wal
+
 __pycache__/
 *.py[cod]

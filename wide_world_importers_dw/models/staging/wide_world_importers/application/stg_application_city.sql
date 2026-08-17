@@ -1,10 +1,9 @@
 with raw as (
     select *
-    from {{ source('wwi_raw', 'application__Cities') }}
+    from {{ source('wwi_raw', 'application__cities') }}
 )
 select
-    CityID AS city_key
-    , CityName AS city_name
-    , StateProvinceID AS state_province_key
-    , Location AS location_key
+    city_id AS city_key
+    , city_name AS city_name
+    , state_province_id AS state_province_key
 from raw

@@ -7,6 +7,8 @@ requires-python = ">=3.11"
 dependencies = [
     # transform
     "dbt-core==1.12.2",
+    "dbt-duckdb",             # Phase 2 target; version left to the resolver
+    "duckdb",
     "dbt-bigquery==1.12.0",   # frozen exhibit; drop after the DuckDB port
     # extract: MSSQL -> Parquet
     "dlt[sql-database]>=1.7.0",

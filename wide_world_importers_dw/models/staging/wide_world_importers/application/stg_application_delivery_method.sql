@@ -1,8 +1,8 @@
 with raw as (
     select *
-    from {{ source('wwi_raw', 'application__DeliveryMethods') }}
+    from {{ source('wwi_raw', 'application__delivery_methods') }}
 )
 select 
-    DeliveryMethodID AS delivery_method_key
-    , DeliveryMethodName AS delivery_method_name
+    delivery_method_id AS delivery_method_key
+    , delivery_method_name AS delivery_method_name
 from raw

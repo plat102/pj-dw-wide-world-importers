@@ -26,16 +26,16 @@ with fact_sales_order_line as (
 
 , fact_sales_order_line__format_date as (
     select 
-        * except (
+        * exclude (
             sales_order_line_picking_completed_date_key,
             order_date_key,
             expected_delivery_date_key,
             sales_order_picking_completed_date_key
         ),
-        format_date('%Y%m%d', sales_order_line_picking_completed_date_key) as sales_order_line_picking_completed_date_key,
-        format_date('%Y%m%d', order_date_key) as order_date_key,
-        format_date('%Y%m%d', expected_delivery_date_key) as expected_delivery_date_key,
-        format_date('%Y%m%d', sales_order_picking_completed_date_key) as sales_order_picking_completed_date_key
+        strftime(sales_order_line_picking_completed_date_key, '%Y%m%d') as sales_order_line_picking_completed_date_key,
+        strftime(order_date_key, '%Y%m%d') as order_date_key,
+        strftime(expected_delivery_date_key, '%Y%m%d') as expected_delivery_date_key,
+        strftime(sales_order_picking_completed_date_key, '%Y%m%d') as sales_order_picking_completed_date_key
     from fact_sales_order_line
 )
 
