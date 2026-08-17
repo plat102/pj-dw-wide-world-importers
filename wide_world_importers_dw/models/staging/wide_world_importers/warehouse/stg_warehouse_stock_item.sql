@@ -12,7 +12,7 @@ select
     , brand AS brand
     , size AS size
     , lead_time_days AS lead_time_days
-    , quantity_per_outer AS quantiy_per_outer
+    , quantity_per_outer
     , is_chiller_stock AS is_chiller_stock
     , tax_rate AS tax_rate
     , unit_price AS unit_price
