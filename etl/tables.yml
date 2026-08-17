@@ -1,5 +1,6 @@
 # Tables in the Parquet snapshot, with an explicit column list each.
-# Rules and rationale: docs/ingestion/extraction_design.md
+# Columns are named rather than taken with *, so the schema is a deliberate artifact and
+# computed columns survive; geography and varbinary are excluded by type, not by name.
 # Editing this file changes the contract -- bump schema_version when you do.
 
 schema_version: 1

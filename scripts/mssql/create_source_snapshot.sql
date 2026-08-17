@@ -1,5 +1,5 @@
--- Freeze the source into a read-only snapshot. Run prepare_extraction_login.sql FIRST.
--- Why: docs/ingestion/extraction_design.md
+-- Freeze the source into a read-only snapshot. Run prepare_extraction_login.sql FIRST:
+-- a snapshot freezes metadata as well as data, so roles granted later never reach it.
 --
 --   sqlcmd -S localhost -U sa -C -v SOURCE_DB="WideWorldImporters" -v SNAPSHOT_DB="WWI_Snap" \
 --          -v EXTRACT_LOGIN="wwi_extract" -i scripts/mssql/create_source_snapshot.sql

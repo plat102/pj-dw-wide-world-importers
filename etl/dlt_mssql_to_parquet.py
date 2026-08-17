@@ -1,6 +1,7 @@
-"""Extract the WWI source into a Parquet snapshot. Design: docs/ingestion/extraction_design.md
+"""Extract the WWI source into a Parquet snapshot.
 
-Reads a frozen database snapshot, not the live database. Connection from MSSQL_CONNECTION_STRING.
+Reads a frozen database snapshot, not the live database, so every table is true at the same
+instant however many connections dlt opens. Connection from MSSQL_CONNECTION_STRING.
 
     python etl/dlt_mssql_to_parquet.py --snapshot-db WWI_Snap --output-dir data/raw
 """

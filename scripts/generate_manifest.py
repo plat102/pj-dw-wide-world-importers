@@ -1,6 +1,7 @@
-"""Describe a Parquet snapshot. Design: docs/ingestion/snapshot_contract_design.md
+"""Describe a Parquet snapshot completely enough that a consumer can verify it later.
 
-Needs no credential. The manifest is committed; the Parquet files are not.
+Needs no credential: the source facts come from data/raw/_extraction.json, which only the
+extraction can know. The manifest is committed; the Parquet files are not.
 
     python scripts/generate_manifest.py --input-dir data/raw --output data/snapshots/manifest.json
 """
