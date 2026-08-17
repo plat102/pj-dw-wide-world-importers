@@ -1,26 +1,18 @@
 # The storage layer: an S3-compatible object store and the DuckLake catalog.
 #
-# This is the ONLY file in the repository that names either product. Everything above it --
-# models, sources.yml, the Makefile, dbt profiles -- sees only s3:// paths and environment
-# variables. That is deliberate: MinIO was the obvious choice at this layer a year ago and its
-# repository was archived in April 2026, so the next default will age too. Designing against the
-# S3 API rather than the product is what makes that a one-file change.
+# This is the only file in the repository that names either product. Everything above it sees
+# s3:// paths and environment variables. Why it is built this way, and what each retry loop is
+# for, is written up in the project's documentation repository under docs/storage/.
 #
-# Images are pinned by digest rather than by tag. A digest is what makes a rebuild reproducible,
-# and the readable version is in the comment beside it.
-#
-#   make up     bring the stack up and create the bucket
-#   make down   stop it, keeping the data
+#   make up             start it and create the bucket
+#   make down           stop it, keeping the data
 #   make clean_storage  stop it and delete the data
 
 services:
-  # SeaweedFS 4.41. One process runs master, volume, filer and the S3 gateway; the distributed
-  # layout buys nothing for a single-node store.
   s3:
-    image: chrislusf/seaweedfs@sha256:43b768cd62b00d132439cda881b93fd1adebf1b315e996e794087743821d771d
-    # The identity file is rendered at start from the environment, so no key is ever in a tracked
-    # file. Without an identity file the gateway answers 403 to everything -- it does not fall
-    # back to anonymous access -- so authentication is the default here rather than an extra.
+    image: chrislusf/seaweedfs:4.41
+    # One process runs master, volume, filer and the S3 gateway. The identity file is rendered
+    # here from the environment so no key is ever committed; without one the gateway answers 403.
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -32,39 +24,33 @@ services:
           -s3.config=/tmp/s3-identities.json \
           -master.volumeSizeLimitMB=1024 -volume.max=10
     environment:
-      # No defaults on purpose: an unset credential must stop the stack, not silently
-      # start one with a value someone could guess from this file.
+      # No defaults: an unset credential must stop the stack, not start one with a guessable value.
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY -- copy .env.example to .env}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY -- copy .env.example to .env}
     ports:
-      - "${S3_PORT:-8333}:8333"   # S3 API -- the only port anything in this repo uses
-      - "9333:9333"               # master UI, for looking at the store by hand
+      - "${S3_PORT:-8333}:8333"   # S3 API -- the only port this repo uses
+      - "9333:9333"               # master UI
       - "8888:8888"               # filer
     volumes:
       - s3-data:/data
       - ./storage/s3-identities.template.json:/etc/seaweedfs/s3-identities.template.json:ro
     healthcheck:
-      # The S3 gateway answers before the volume server is ready to accept writes, so the
-      # check has to hit the master's cluster status rather than just the S3 port.
-      # 127.0.0.1, not localhost: weed binds IPv4 only, and busybox wget tries ::1 first.
+      # 127.0.0.1, not localhost: weed binds IPv4 only and busybox wget tries ::1 first.
+      # Coarse on purpose -- `make up` waits on a real write; see scripts/wait_for_storage.py.
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9333/cluster/status"]
       interval: 3s
       timeout: 3s
       retries: 20
       start_period: 5s
 
-  # Creating the bucket is part of bringing the stack up. A store whose bucket has to be made by
-  # hand is a store that fails for the next person on a step nobody wrote down.
+  # Creating the bucket is part of starting the stack, not a step someone has to remember.
+  # Retries because the filer serves bucket commands later than the healthcheck goes green, and
+  # `weed shell` exits 0 even when it failed.
   s3-init:
-    image: chrislusf/seaweedfs@sha256:43b768cd62b00d132439cda881b93fd1adebf1b315e996e794087743821d771d
+    image: chrislusf/seaweedfs:4.41
     depends_on:
       s3:
         condition: service_healthy
-    # Retries until the bucket is really listed, and fails if it never is. The healthcheck on
-    # `s3` goes green when the master answers, which is before the filer will serve bucket
-    # commands -- so a single attempt reports success while having done nothing, and the next
-    # step then fails somewhere less obvious.
-    # busybox sh, so no bash-isms: `printf | weed shell`, never a here-string.
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -86,12 +72,10 @@ services:
       S3_BUCKET: ${S3_BUCKET:-wwi}
     restart: "no"
 
-  # The DuckLake catalog. Postgres rather than a file, because a catalog living in one
-  # contributor's working directory is not shared, and a catalog that cannot be shared does not
-  # make a lakehouse. In cloud this component is a managed database, so a container is the honest
-  # local equivalent.
+  # DuckLake catalog. Postgres rather than a file, because a catalog nobody else can reach does
+  # not make a lakehouse; in cloud this is a managed database.
   catalog:
-    image: postgres@sha256:e013e867e712fec275706a6c51c966f0bb0c93cfa8f51000f85a15f9865a28cb  # postgres:16-alpine
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${CATALOG_USER:?set CATALOG_USER -- copy .env.example to .env}
       POSTGRES_PASSWORD: ${CATALOG_PASSWORD:?set CATALOG_PASSWORD -- copy .env.example to .env}
@@ -106,8 +90,7 @@ services:
       timeout: 3s
       retries: 20
 
-# Named volumes, so `docker compose down` stops the stack without emptying the bronze layer.
-# Deleting the data takes `down -v`, which `make clean_storage` does explicitly.
+# Named, so `down` keeps the data. Deleting it takes `make clean_storage`.
 volumes:
   s3-data:
   catalog-data:
