@@ -31,10 +31,12 @@ jobs:
       # source database, and a build that needs it would fail here rather than pass quietly.
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        # Pinned exactly: setup-uv publishes no floating tag past v7, and v10 is what targets
+        # node 24. checkout has one, so it uses it and gets patches for free.
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
 
