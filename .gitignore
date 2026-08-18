@@ -32,6 +32,11 @@ package-lock.yml
 # describes it is tracked -- see data/snapshots/manifest.json.
 data/raw/
 
+# Nothing in the build produces this any more; the read-only DuckDB client recreates it on
+# connect, so it stays ignored rather than tracked.
+*.duckdb
+*.duckdb.wal
+
 __pycache__/
 *.py[cod]
 

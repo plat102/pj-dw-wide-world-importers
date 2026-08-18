@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "snapshot_timestamp": "2026-08-16T13:29:42+00:00",
-  "snapshot_id": "20260816T132942Z",
+  "snapshot_timestamp": "2026-08-18T12:58:22+00:00",
+  "snapshot_id": "20260818T125822Z",
   "mssql_version": "17.0.4075.5 RTM Standard Developer Edition (64-bit)",
   "delivery_time_form": "computed_column",
   "table_count": 21,
-  "total_size_bytes": 24963070,
+  "total_size_bytes": 24662970,
   "total_row_count": 1039312,
   "tables": {
     "application__cities": {
@@ -60,8 +60,8 @@
     "application__people": {
       "file": "application__people.parquet",
       "row_count": 1134,
-      "size_bytes": 81455,
-      "sha256": "b3247b824ae1b49601ac84c4f963652a1e4a348fad253798ad87211a95831778",
+      "size_bytes": 81250,
+      "sha256": "399a723556df9330283fa47a19ba77212ef6172a791c7e7f4a911db6c52a4b12",
       "columns": {
         "person_id": "int64",
         "full_name": "string",
@@ -117,8 +117,8 @@
     "purchasing__purchase_order_lines": {
       "file": "purchasing__purchase_order_lines.parquet",
       "row_count": 13093,
-      "size_bytes": 226808,
-      "sha256": "7bcab169b481617e7033c8ea511ae2ae180c1de6ad3d5730f9a7c074d02b775f",
+      "size_bytes": 226375,
+      "sha256": "1fe55b81d17ae795e1601736d91f10663773ba3962e6e4fd3be0ed7e89b10532",
       "columns": {
         "purchase_order_line_id": "int64",
         "purchase_order_id": "int64",
@@ -270,8 +270,8 @@
     "sales__invoices": {
       "file": "sales__invoices.parquet",
       "row_count": 113225,
-      "size_bytes": 11242224,
-      "sha256": "4e4de9035687bd69bdb68b2e77e019344a50bbf8b31a9a9a514f6261bcea25cf",
+      "size_bytes": 10946842,
+      "sha256": "967272fbc474ecc7bd7304c5d9aeae4a317c53fc3bd7460b7fd7b47932063180",
       "columns": {
         "invoice_id": "int64",
         "customer_id": "int64",
@@ -303,8 +303,8 @@
     "sales__order_lines": {
       "file": "sales__order_lines.parquet",
       "row_count": 371369,
-      "size_bytes": 5288010,
-      "sha256": "cfcfd58dbfe213db2406c91ce614012a4896307f60e60addc69c530dcc7b285b",
+      "size_bytes": 5284441,
+      "sha256": "42078802257e5d403b0c725a06fa26a053904b5cd72fb805ad20c436c366a6bf",
       "columns": {
         "order_line_id": "int64",
         "order_id": "int64",
@@ -323,8 +323,8 @@
     "sales__orders": {
       "file": "sales__orders.parquet",
       "row_count": 118479,
-      "size_bytes": 1843796,
-      "sha256": "fcf49c44d61d2dc3a576f78d8f25de236514467769352688cdd8ef7a3e149439",
+      "size_bytes": 1843285,
+      "sha256": "69815a314c90777dd1d2e7bc6dea18ac794fd8021b4235d8e1b7dfb395058319",
       "columns": {
         "order_id": "int64",
         "customer_id": "int64",
