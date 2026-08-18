@@ -1,69 +1,64 @@
 #!/usr/bin/env python
 """Print every relation in the warehouse with its row and column count.
 
-This exists so no document has to carry a row count. Counts change whenever the data span
-changes, and a number copied into prose is a second source of truth that nobody updates.
+Exists so no document has to carry a row count; read through a fresh connection.
 
-    uv run python scripts/warehouse_shape.py       # or: make shape
+    python -m scripts.warehouse_shape       # or: make shape
 """
 
 from __future__ import annotations
 
-import argparse
-import os
 import sys
-from pathlib import Path
 
-import duckdb
-
-DEFAULT_DB = Path(__file__).resolve().parent.parent / "wwi.duckdb"
+from scripts.warehouse import connect, data_path
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--database",
-        default=os.environ.get("DUCKDB_PATH", str(DEFAULT_DB)),
-        help="path to the DuckDB file (default: $DUCKDB_PATH, else wwi.duckdb)",
-    )
-    args = parser.parse_args()
-
-    if not Path(args.database).exists():
-        sys.exit(f"{args.database} does not exist -- run `make build` first")
-
-    conn = duckdb.connect(args.database, read_only=True)
+    conn = connect()
+    relations = conn.execute(
+        """
+        select table_schema, table_name, table_type
+        from information_schema.tables
+        where table_catalog = 'lake'
+        order by table_schema, table_name
+        """
+    ).fetchall()
+    if not relations:
+        sys.exit("the lake holds no relations -- run `make build` first")
 
     columns = dict(
         conn.execute(
             "select table_schema || '.' || table_name, count(*) "
-            "from information_schema.columns where table_schema like 'main_%' "
-            "group by 1"
+            "from information_schema.columns where table_catalog = 'lake' group by 1"
         ).fetchall()
     )
-    if not columns:
-        sys.exit(f"{args.database} holds no main_* schema -- was the build interrupted?")
 
-    # Views have no stored row count, so they have to be counted. Build one union query
-    # rather than a round trip per relation.
-    counts_sql = conn.execute(
-        "select string_agg("
-        "  format('select ''{}.{}'' as relation, count(*) as rows from \"{}\".\"{}\"',"
-        "         table_schema, table_name, table_schema, table_name),"
-        "  ' union all ' order by table_schema, table_name)"
-        " from information_schema.tables where table_schema like 'main_%'"
-    ).fetchone()[0]
-    rows = conn.execute(f"{counts_sql} order by relation").fetchall()
+    # Views have no stored count, so all must be counted -- one union query, not 26 round trips.
+    counts = dict(
+        conn.execute(
+            " union all ".join(
+                f"select '{schema}.{table}' as relation, count(*) as rows "
+                f'from lake."{schema}"."{table}"'
+                for schema, table, _ in relations
+            )
+        ).fetchall()
+    )
 
-    width = max(len(name) for name, _ in rows)
+    width = max(len(name) for name in columns)
     layer = None
-    for name, count in rows:
-        schema = name.split(".", 1)[0]
+    for schema, table, kind in relations:
+        name = f"{schema}.{table}"
         if schema != layer:
             print(f"\n{schema}")
             layer = schema
-        print(f"  {name:<{width}}  {count:>9,} rows  {columns[name]:>3} columns")
+        print(
+            f"  {name:<{width}}  {counts[name]:>9,} rows  {columns[name]:>3} columns  "
+            f"{'table' if kind == 'BASE TABLE' else 'view'}"
+        )
 
-    print(f"\n{len(rows)} relations, {sum(columns.values())} columns total")
+    snapshot = conn.execute("select max(snapshot_id) from ducklake_snapshots('lake')").fetchone()[0]
+    print(f"\n{len(relations)} relations, {sum(columns.values())} columns total")
+    print(f"lake at {data_path()}, snapshot {snapshot}")
     return 0
 
 

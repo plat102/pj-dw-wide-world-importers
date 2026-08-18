@@ -1,12 +1,7 @@
 # The storage layer: an S3-compatible object store and the DuckLake catalog.
+# The only file that names either product; everything above it sees s3:// and env vars.
 #
-# This is the only file in the repository that names either product. Everything above it sees
-# s3:// paths and environment variables. Why it is built this way, and what each retry loop is
-# for, is written up in the project's documentation repository under docs/storage/.
-#
-#   make up             start it and create the bucket
-#   make down           stop it, keeping the data
-#   make clean_storage  stop it and delete the data
+#   make up / make down / make clean_storage
 
 services:
   s3:
@@ -28,9 +23,9 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY -- copy .env.example to .env}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY -- copy .env.example to .env}
     ports:
-      - "${S3_PORT:-8333}:8333"   # S3 API -- the only port this repo uses
-      - "9333:9333"               # master UI
-      - "8888:8888"               # filer
+      # The S3 API is the only port anything outside the container speaks to. The master and filer
+      # ports stay internal; the healthcheck below reaches the master from inside.
+      - "${S3_PORT:-8333}:8333"
     volumes:
       - s3-data:/data
       - ./storage/s3-identities.template.json:/etc/seaweedfs/s3-identities.template.json:ro
@@ -42,35 +37,6 @@ services:
       timeout: 3s
       retries: 20
       start_period: 5s
-
-  # Creating the bucket is part of starting the stack, not a step someone has to remember.
-  # Retries because the filer serves bucket commands later than the healthcheck goes green, and
-  # `weed shell` exits 0 even when it failed.
-  s3-init:
-    image: chrislusf/seaweedfs:4.41
-    depends_on:
-      s3:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -eu
-        attempt=0
-        until printf 's3.bucket.list\n' | weed shell -master=s3:9333 2>/dev/null \
-              | grep -qw "$${S3_BUCKET}"; do
-          attempt=$$((attempt + 1))
-          if [ "$$attempt" -gt 30 ]; then
-            echo "bucket $${S3_BUCKET} still absent after $$attempt attempts" >&2
-            exit 1
-          fi
-          printf 's3.bucket.create -name %s\n' "$${S3_BUCKET}" \
-            | weed shell -master=s3:9333 2>&1 | sed 's/^/  /' || true
-          sleep 2
-        done
-        echo "bucket $${S3_BUCKET} exists"
-    environment:
-      S3_BUCKET: ${S3_BUCKET:-wwi}
-    restart: "no"
 
   # DuckLake catalog. Postgres rather than a file, because a catalog nobody else can reach does
   # not make a lakehouse; in cloud this is a managed database.

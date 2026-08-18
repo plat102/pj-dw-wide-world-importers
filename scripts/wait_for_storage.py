@@ -1,72 +1,53 @@
 #!/usr/bin/env python
-"""Block until the object store can actually take a write, then prove it can be read back.
+"""Create the bucket if it is missing, then block until the store can take a write.
 
-A container healthcheck is not enough. SeaweedFS reports healthy as soon as its master answers,
-which happens **before** the volume server has re-registered its volumes after a restart -- so a
-read one second later fails with a peer error rather than a 404. Anything that runs straight after
-`make up`, CI most of all, needs a gate that waits for the store to be usable rather than reachable.
+A healthcheck is not enough: the store reports healthy before it can serve a write. Creating the
+bucket over the S3 API keeps the step store-agnostic.
 
-Deliberately speaks only the S3 API, so it stays true if the store behind the endpoint is replaced.
-
-    uv run python scripts/wait_for_storage.py       # or: make up
-
-Exits 0 once a round trip succeeds, 1 if the timeout passes first.
+    python -m scripts.wait_for_storage       # or: make up
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 import time
 
-import duckdb
+from scripts.warehouse import require, s3fs_client
 
-PROBE_KEY = "_probe/readiness.parquet"
-
-
-def s3_connection(endpoint: str, access_key: str, secret_key: str, use_ssl: bool):
-    conn = duckdb.connect()
-    conn.execute("install httpfs")
-    conn.execute("load httpfs")
-    # Parameters are not accepted in CREATE SECRET, so the values are formatted in. They come from
-    # the environment and never touch a tracked file.
-    conn.execute(
-        f"""
-        create secret storage (
-            type s3,
-            key_id '{access_key}',
-            secret '{secret_key}',
-            endpoint '{endpoint}',
-            url_style 'path',
-            use_ssl {str(use_ssl).lower()}
-        )
-        """
-    )
-    return conn
+PROBE_KEY = "_probe/readiness"
 
 
-def require(name: str) -> str:
-    value = os.environ.get(name)
-    if not value:
-        sys.exit(f"{name} is not set -- copy .env.example to .env and fill it in")
-    return value
+def probe(bucket: str) -> str:
+    """Create the bucket if needed, then round-trip an object. Raises until the store is ready.
+
+    A write and a read, not a listing: a listing succeeds while writes still fail.
+    """
+    fs = s3fs_client()
+    if fs.exists(bucket):
+        state = "already present"
+    else:
+        fs.mkdir(bucket)
+        # Some stores return from create before the bucket is listable, so confirm it.
+        if not fs.exists(bucket):
+            raise RuntimeError(f"created bucket {bucket} but it is not listable yet")
+        state = "created"
+
+    key = f"{bucket}/{PROBE_KEY}"
+    fs.pipe(key, b"ready")
+    if fs.cat(key) != b"ready":
+        raise RuntimeError(f"round trip through {key} did not return what was written")
+    return state
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--timeout", type=float, default=60.0, help="seconds to keep trying")
+    parser.add_argument("--timeout", type=float, default=90.0, help="seconds to keep trying")
     parser.add_argument("--interval", type=float, default=2.0, help="seconds between attempts")
-    parser.add_argument("--quiet", action="store_true", help="print only on failure")
     args = parser.parse_args()
 
     endpoint = require("S3_ENDPOINT")
     bucket = require("S3_BUCKET")
-    access_key = require("S3_ACCESS_KEY")
-    secret_key = require("S3_SECRET_KEY")
-    use_ssl = os.environ.get("S3_USE_SSL", "false").strip().lower() in {"1", "true", "yes"}
-
-    target = f"s3://{bucket}/{PROBE_KEY}"
     deadline = time.monotonic() + args.timeout
     attempt = 0
     last_error = "no attempt was made"
@@ -74,26 +55,18 @@ def main() -> int:
     while time.monotonic() < deadline:
         attempt += 1
         try:
-            conn = s3_connection(endpoint, access_key, secret_key, use_ssl)
-            # A write and a read, not a listing. Listing a bucket succeeds while the volume
-            # server is still unavailable, which is exactly the state this has to catch.
-            conn.execute(f"copy (select 1 as ready) to '{target}' (format parquet)")
-            rows = conn.execute(f"select ready from read_parquet('{target}')").fetchall()
-            if rows != [(1,)]:
-                raise RuntimeError(f"round trip returned {rows!r}")
-            if not args.quiet:
-                print(f"storage ready at {endpoint}, bucket {bucket} (attempt {attempt})")
+            state = probe(bucket)
+            print(f"storage ready at {endpoint}, bucket {bucket} {state} (attempt {attempt})")
             return 0
-        except Exception as error:  # duckdb raises several unrelated types here
+        except Exception as error:  # s3fs and botocore raise several unrelated types here
             last_error = f"{type(error).__name__}: {str(error).splitlines()[0]}"
-            if not args.quiet:
-                print(f"  attempt {attempt}: {last_error}")
-            time.sleep(args.interval)
+            print(f"  attempt {attempt}: {last_error}")
+        time.sleep(args.interval)
 
     print(
         f"storage at {endpoint} did not become writable within {args.timeout:.0f}s\n"
         f"  last error: {last_error}\n"
-        f"  check `make storage_status`, and that the bucket {bucket!r} exists",
+        f"  check `docker compose ps` and the container logs",
         file=sys.stderr,
     )
     return 1

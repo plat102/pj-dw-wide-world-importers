@@ -9,7 +9,6 @@ dependencies = [
     "dbt-core==1.12.2",
     "dbt-duckdb",             # the warehouse engine; version left to the resolver
     "duckdb",
-    "dbt-bigquery==1.12.0",   # frozen exhibit; drop after the DuckDB port
     # extract: MSSQL -> Parquet on the object store
     "dlt[sql-database]>=1.7.0",
     "s3fs>=2024.6",           # dlt's filesystem destination cannot write s3:// without it

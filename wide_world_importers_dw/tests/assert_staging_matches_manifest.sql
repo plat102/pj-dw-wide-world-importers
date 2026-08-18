@@ -1,8 +1,23 @@
--- Every staging model must carry exactly as many rows as the manifest recorded for its
--- source table. Staging does renames and casts only, so any difference means either a
--- silent filter crept into a model or the Parquet on disk is not the snapshot the manifest
--- describes. Row count is the cheap half of the contract; verify_snapshot.py checks the
--- SHA256 that catches changes a count cannot see.
+-- Declared, not inferred: a cold parse intermittently failed to infer these and scheduled the
+-- test ahead of the models it reads.
+-- depends_on: {{ ref('stg_application_city') }}
+-- depends_on: {{ ref('stg_application_country') }}
+-- depends_on: {{ ref('stg_application_delivery_method') }}
+-- depends_on: {{ ref('stg_application_person') }}
+-- depends_on: {{ ref('stg_application_state_province') }}
+-- depends_on: {{ ref('stg_purchasing_supplier') }}
+-- depends_on: {{ ref('stg_purchasing_supplier_category') }}
+-- depends_on: {{ ref('stg_sales_buying_group') }}
+-- depends_on: {{ ref('stg_sales_customer') }}
+-- depends_on: {{ ref('stg_sales_customer_category') }}
+-- depends_on: {{ ref('stg_sales_order') }}
+-- depends_on: {{ ref('stg_sales_order_line') }}
+-- depends_on: {{ ref('stg_warehouse_color') }}
+-- depends_on: {{ ref('stg_warehouse_package_type') }}
+-- depends_on: {{ ref('stg_warehouse_stock_item') }}
+
+-- Every staging model must carry the row count the manifest recorded: staging only renames and
+-- casts, so a difference means a silent filter or the wrong snapshot.
 
 with manifest as (
     select unnest(json_keys(tables)) as source_table, tables

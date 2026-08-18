@@ -1,6 +1,9 @@
--- Pins dim_date where its arithmetic is easiest to get wrong: the fiscal-year boundary,
--- a weekend, and the ISO week that belongs to the next year while the date is still December.
--- Returns one row per disagreement, so an empty result is a pass.
+-- Declared, not inferred: a cold parse intermittently failed to infer these and scheduled the
+-- test ahead of the models it reads.
+-- depends_on: {{ ref('dim_date') }}
+
+-- Pins dim_date where its arithmetic is easiest to get wrong: the fiscal-year boundary, a
+-- weekend, and the ISO week that belongs to the next year. One row per disagreement.
 
 with expected (full_date, fiscal_year, fiscal_qtr, year_week, week_day, day_is_weekday) as (
     values

@@ -1,7 +1,10 @@
--- The wide mart joins ten dimensions onto the fact. Every one of those joins is on a key
--- that must be unique in its dimension, so the mart has to come out at exactly the fact's
--- row count. A dimension that gains a duplicate key silently multiplies rows here, and a
--- row count is the only place that shows.
+-- Declared, not inferred: a cold parse intermittently failed to infer these and scheduled the
+-- test ahead of the models it reads.
+-- depends_on: {{ ref('fact_sales_order_line') }}
+-- depends_on: {{ ref('mart_sales_order_line') }}
+
+-- The mart joins ten dimensions onto the fact, each on a key unique in its dimension, so it must
+-- come out at exactly the fact's row count. A duplicate key silently multiplies rows.
 
 with counts as (
     select
