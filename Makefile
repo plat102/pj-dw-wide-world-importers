@@ -1,29 +1,26 @@
 # Recipes must be indented with a TAB. Spaces make GNU make fail to parse the file.
 # `uv run` resolves the environment from uv.lock; no venv activation needed.
 
-# docker compose reads .env by itself; make does not, and the python scripts need the same
-# values. `-include` so a missing .env is not fatal -- targets that need it fail with their own
-# message. A value containing `#` would be truncated here, so keep credentials free of it.
+# make does not read .env by itself; `-include` so a missing one is not fatal. Keep values free
+# of `#` -- make truncates the rest of the line.
 -include .env
 export
 DBT_DIR := wide_world_importers_dw
 PROFILES_ARG := $(if $(PROFILES_DIR),--profiles-dir $(PROFILES_DIR),)
 DBT := uv run dbt
-SNAPSHOT_DB := WWI_Snap
-EXTRACT_LOGIN := wwi_extract
+# Read from the live source in one snapshot-isolation transaction: read-only SELECT is enough.
+SOURCE_DB := WideWorldImporters
 
-.PHONY: up down clean_storage storage_status storage_wait seed_bronze seed_bronze_check install deps parse run_dbt test_dbt build snapshot_create snapshot_drop extract manifest sources sources_check verify compare shape
+.PHONY: up down clean_storage seed_bronze seed_bronze_empty install deps parse build extract manifest sources sources_check verify compare shape compact compact_dry
 
 # --- storage layer ----------------------------------------------------------------------
-# The object store and the DuckLake catalog. Credentials come from .env, which compose reads
-# automatically; an unset one stops the stack rather than starting it with a guessable value.
+# Credentials come from .env; an unset one stops the stack rather than guessing a value.
 
 up:
-	docker compose up -d --wait s3 catalog
-	docker compose run --rm s3-init
-# The container healthcheck goes green before the volume server can take a write, so this
-# waits on a real round trip. Without it, whatever runs next races the store.
-	uv run python scripts/wait_for_storage.py
+	docker compose up -d --wait
+# Creates the bucket and waits on a real round trip. The container healthcheck goes green before
+# the volume server can take a write, so without this whatever runs next races the store.
+	uv run python -m scripts.wait_for_storage
 
 down:
 	docker compose down
@@ -33,20 +30,16 @@ down:
 clean_storage:
 	docker compose down -v
 
-storage_status:
-	docker compose ps
-
-storage_wait:
-	uv run python scripts/wait_for_storage.py
-
-# Puts the local snapshot on the store. Verifies each object's SHA256 against the manifest after
-# writing, because a count of uploaded files says nothing about their contents.
+# Puts the local snapshot on the store, then verifies the objects that landed. A count of
+# uploaded files says nothing about their contents.
 seed_bronze:
-	uv run python scripts/seed_bronze.py
+	uv run python -m scripts.seed_bronze
+	uv run python -m scripts.verify_snapshot
 
-# Same verification, upload nothing. What CI runs before a build.
-seed_bronze_check:
-	uv run python scripts/seed_bronze.py --check
+# Zero-row Parquet carrying the manifest's schema. What CI seeds, because the real snapshot is
+# not in the repository. A build over it still executes every model, so a column break fails.
+seed_bronze_empty:
+	uv run python -m scripts.seed_bronze --empty
 
 # --- python + dbt -----------------------------------------------------------------------
 
@@ -59,45 +52,43 @@ deps:
 parse:
 	$(DBT) parse --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
 
-run_dbt:
-	$(DBT) run --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
-
-test_dbt:
-	$(DBT) test --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
-
 build:
 	$(DBT) build --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
 
-snapshot_create:
-	sqlcmd -S localhost -U sa -C -v SOURCE_DB="WideWorldImporters" -v SNAPSHOT_DB="$(SNAPSHOT_DB)" -v EXTRACT_LOGIN="$(EXTRACT_LOGIN)" -i scripts/mssql/create_source_snapshot.sql
-
-snapshot_drop:
-	sqlcmd -S localhost -U sa -C -v SNAPSHOT_DB="$(SNAPSHOT_DB)" -i scripts/mssql/drop_source_snapshot.sql
-
-extract: snapshot_create
-	uv run python etl/dlt_mssql_to_parquet.py --snapshot-db $(SNAPSHOT_DB) --output-dir data/raw
-	$(MAKE) snapshot_drop
+# data/raw/ is staging, not where the snapshot lives. The published snapshot is on the object
+# store under bronze/<snapshot-id>/; this chain ends by putting it there and verifying it landed.
+extract:
+	uv run python etl/dlt_mssql_to_parquet.py --source-db $(SOURCE_DB)
 	$(MAKE) manifest
 	$(MAKE) sources
+	$(MAKE) seed_bronze
 
 manifest:
-	uv run python scripts/generate_manifest.py
+	uv run python -m scripts.generate_manifest
 
 # sources.yml is a projection of the manifest. Regenerate after every extraction.
 sources:
-	uv run python scripts/generate_sources.py
+	uv run python -m scripts.generate_sources
 
 # Fails if sources.yml has drifted from the manifest. For CI and for pre-push.
 sources_check:
-	uv run python scripts/generate_sources.py --check
+	uv run python -m scripts.generate_sources --check
 
 verify:
-	uv run python scripts/verify_snapshot.py
+	uv run python -m scripts.verify_snapshot
 
 # Every relation with its row and column count. Exists so no document carries a row count.
 shape:
-	uv run python scripts/warehouse_shape.py
+	uv run python -m scripts.warehouse_shape
+
+# Expire old lake snapshots and delete the files they held. Not part of `build`: a store fills up
+# over weeks, not per build. The current snapshot never expires.
+compact:
+	uv run python -m scripts.lake_retention
+
+compact_dry:
+	uv run python -m scripts.lake_retention --dry-run
 
 # Two builds of one snapshot must be identical. Names the relation and the column when not.
 compare:
-	uv run python scripts/compare_builds.py $(if $(PROFILES_DIR),--profiles-dir $(PROFILES_DIR),)
+	uv run python -m scripts.compare_builds $(if $(PROFILES_DIR),--profiles-dir $(PROFILES_DIR),)

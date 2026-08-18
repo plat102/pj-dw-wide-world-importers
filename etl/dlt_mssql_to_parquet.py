@@ -1,9 +1,8 @@
-"""Extract the WWI source into a Parquet snapshot.
+"""Extract the WWI source into a Parquet snapshot, all tables in one SNAPSHOT transaction.
 
-Reads a frozen database snapshot, not the live database, so every table is true at the same
-instant however many connections dlt opens. Connection from MSSQL_CONNECTION_STRING.
+Connection from MSSQL_CONNECTION_STRING; a read-only login is enough.
 
-    python etl/dlt_mssql_to_parquet.py --snapshot-db WWI_Snap --output-dir data/raw
+    python etl/dlt_mssql_to_parquet.py --source-db WideWorldImporters
 """
 
 from __future__ import annotations
@@ -22,24 +21,79 @@ import yaml
 from dlt.sources.sql_database import sql_table
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CONFIG = REPO_ROOT / "etl" / "tables.yml"
+TABLES_CONFIG = REPO_ROOT / "etl" / "tables.yml"
+# sys.dm_exec_sessions.transaction_isolation_level: 5 is Snapshot.
+SNAPSHOT_ISOLATION_LEVEL = 5
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--snapshot-db", default="WWI_Snap")
+    p.add_argument("--source-db", default="WideWorldImporters")
     p.add_argument("--output-dir", default="data/raw")
-    p.add_argument("--tables-config", default=str(DEFAULT_CONFIG))
-    p.add_argument("--load-timestamp", default=None, help="ISO 8601; defaults to now (UTC)")
     return p.parse_args()
 
 
-def connection_string(snapshot_db: str) -> str:
+def connection_string(source_db: str) -> str:
     raw = os.environ.get("MSSQL_CONNECTION_STRING")
     if not raw:
         sys.exit("MSSQL_CONNECTION_STRING is not set")
     parts = urlsplit(raw)
-    return urlunsplit((parts.scheme, parts.netloc, f"/{snapshot_db}", parts.query, parts.fragment))
+    return urlunsplit((parts.scheme, parts.netloc, f"/{source_db}", parts.query, parts.fragment))
+
+
+def pinned_engine(conn_str: str):
+    """An engine on which one transaction can span every table dlt reads.
+
+    StaticPool shares one session; AUTOCOMMIT makes pymssql ignore SQLAlchemy's rollback on close.
+    """
+    import sqlalchemy as sa
+    from sqlalchemy.pool import StaticPool
+
+    return sa.create_engine(
+        conn_str,
+        poolclass=StaticPool,
+        isolation_level="AUTOCOMMIT",
+        pool_reset_on_return=None,
+    )
+
+
+def open_snapshot_transaction(engine):
+    """Begin the transaction every table is read inside. Returns the raw connection and its id.
+
+    SNAPSHOT is set and read back before BEGIN: SQL Server refuses to switch afterwards (Msg 3951).
+    """
+    raw = engine.raw_connection()
+    cursor = raw.cursor()
+    cursor.execute("SET TRANSACTION ISOLATION LEVEL SNAPSHOT")
+    # Own session only, so this needs no permission the extraction login lacks.
+    cursor.execute(
+        "SELECT transaction_isolation_level FROM sys.dm_exec_sessions WHERE session_id = @@SPID"
+    )
+    level = cursor.fetchone()[0]
+    if level != SNAPSHOT_ISOLATION_LEVEL:
+        sys.exit(
+            f"the session is at isolation level {level}, not {SNAPSHOT_ISOLATION_LEVEL} "
+            "(snapshot) -- SET TRANSACTION ISOLATION LEVEL SNAPSHOT did not take effect"
+        )
+    cursor.execute("BEGIN TRANSACTION")
+    cursor.execute("SELECT CURRENT_TRANSACTION_ID()")
+    return raw, cursor, cursor.fetchone()[0]
+
+
+def assert_same_transaction(cursor, expected: int) -> None:
+    """Refuse to publish a snapshot whose reads were not all in one transaction.
+
+    A changed id means different instants -- invisible downstream, since each file is valid.
+    """
+    cursor.execute("SELECT CURRENT_TRANSACTION_ID()")
+    actual = cursor.fetchone()[0]
+    if actual != expected:
+        sys.exit(
+            f"the snapshot transaction did not survive the extraction (began {expected}, ended "
+            f"{actual}) -- the tables are not from one instant. Something in the driver, the "
+            "pool or the extraction library issued its own commit or rollback; the settings in "
+            "pinned_engine() are what prevent that"
+        )
 
 
 def check_declared_columns(engine, tables: list[dict]) -> None:
@@ -71,17 +125,14 @@ def count_source_rows(engine, tables: list[dict]) -> dict[str, int]:
     return counts
 
 
-def assert_out_of_load_mode(conn, snapshot_db: str) -> None:
-    """Refuse a snapshot frozen while the source was in data-load mode.
+def assert_out_of_load_mode(conn, source_db: str) -> None:
+    """Refuse to extract a source still in DataLoadSimulation load mode.
 
-    Load mode switches system versioning off, so rows changed under it are never
-    written to history. A snapshot freezes that state, which is why the assertion
-    belongs here and not only where the snapshot is created.
+    It switches versioning and the security policy off, so changed rows reach no history table.
     """
     import sqlalchemy as sa
 
-    # Every history table in WWI is named `*_Archive`, so the two counts agree
-    # unless versioning was turned off. No baseline number to keep in sync.
+    # Every WWI history table is named `*_Archive`, so the counts agree unless versioning is off.
     versioned, archives = conn.execute(
         sa.text(
             "SELECT COUNT(CASE WHEN temporal_type = 2 THEN 1 END), "
@@ -91,41 +142,61 @@ def assert_out_of_load_mode(conn, snapshot_db: str) -> None:
     ).fetchone()
     if versioned != archives:
         sys.exit(
-            f"{snapshot_db}: {versioned} versioned tables but {archives} archive tables -- "
-            "the source was in load mode. Run "
+            f"{source_db}: {versioned} versioned tables but {archives} archive tables -- "
+            "the source is in load mode. Run "
             "DataLoadSimulation.ReactivateTemporalTablesAfterDataLoad and "
-            "Configuration_RemoveDataLoadSimulationProcedures on the source, "
-            "then drop the snapshot and take it again"
+            "Configuration_RemoveDataLoadSimulationProcedures on the source, then extract again"
+        )
+
+    # WWI ships exactly one policy and load mode switches it off. Zero is also what a login
+    # without VIEW DEFINITION sees, so both readings fail here.
+    policies = conn.execute(
+        sa.text("SELECT COUNT(*) FROM sys.security_policies WHERE is_enabled = 1")
+    ).scalar()
+    if policies != 1:
+        sys.exit(
+            f"{source_db}: {policies} enabled security policies, expected 1 -- either the "
+            "source is in load mode (run "
+            "DataLoadSimulation.Configuration_RemoveDataLoadSimulationProcedures), or this "
+            "login cannot see them and needs GRANT VIEW DEFINITION on the database"
         )
 
     durability = conn.execute(
         sa.text("SELECT delayed_durability_desc FROM sys.databases WHERE name = :db"),
-        {"db": snapshot_db},
+        {"db": source_db},
     ).scalar()
     if durability != "DISABLED":
         sys.exit(
-            f"{snapshot_db}: DELAYED_DURABILITY is {durability}, not DISABLED -- the source "
-            "was still configured for bulk generation. Set it back, drop the snapshot "
-            "and take it again"
+            f"{source_db}: DELAYED_DURABILITY is {durability}, not DISABLED -- the source is "
+            "still configured for bulk generation. Set it back, then extract again"
         )
 
 
-def inspect_source(conn_str: str, snapshot_db: str) -> dict[str, str]:
-    """Verify the target is a snapshot and read the facts the manifest needs."""
+def inspect_source(conn_str: str, source_db: str) -> dict[str, str]:
+    """Check the preconditions and read the facts the manifest needs.
+
+    On a plain connection: the isolation check needs there to be no transaction yet.
+    """
     import sqlalchemy as sa
 
     engine = sa.create_engine(conn_str)
     with engine.connect() as conn:
         row = conn.execute(
-            sa.text("SELECT source_database_id FROM sys.databases WHERE name = :db"),
-            {"db": snapshot_db},
+            sa.text(
+                "SELECT snapshot_isolation_state_desc FROM sys.databases WHERE name = :db"
+            ),
+            {"db": source_db},
         ).fetchone()
         if row is None:
-            sys.exit(f"{snapshot_db} does not exist -- run scripts/mssql/create_source_snapshot.sql")
-        if row[0] is None:
-            sys.exit(f"{snapshot_db} is a live database, not a snapshot; refusing to extract")
+            sys.exit(f"{source_db} does not exist, or this login cannot see it")
+        if row[0] != "ON":
+            sys.exit(
+                f"{source_db}: ALLOW_SNAPSHOT_ISOLATION is {row[0]}, not ON -- the extraction "
+                "reads every table in one snapshot transaction and will not fall back to READ "
+                "COMMITTED. Run scripts/mssql/prepare_extraction_login.sql to enable it"
+            )
 
-        assert_out_of_load_mode(conn, snapshot_db)
+        assert_out_of_load_mode(conn, source_db)
 
         version = conn.execute(
             sa.text(
@@ -142,7 +213,7 @@ def inspect_source(conn_str: str, snapshot_db: str) -> dict[str, str]:
         ).scalar()
     return {
         "mssql_version": version,
-        # ADR-0003: without the computed column, on-time needs ReturnedDeliveryData parsed downstream.
+        # Without the computed column, on-time has to be parsed from ReturnedDeliveryData instead.
         "delivery_time_form": "computed_column" if computed else "raw_json",
     }
 
@@ -157,24 +228,24 @@ def clear_previous_run(out_dir: Path) -> None:
 
 def main() -> int:
     args = parse_args()
-    config = yaml.safe_load(Path(args.tables_config).read_text(encoding="utf-8"))
+    config = yaml.safe_load(TABLES_CONFIG.read_text(encoding="utf-8"))
     tables = config["tables"]
     schema_version = config["schema_version"]
 
-    conn_str = connection_string(args.snapshot_db)
-    source_facts = inspect_source(conn_str, args.snapshot_db)
+    conn_str = connection_string(args.source_db)
+    source_facts = inspect_source(conn_str, args.source_db)
 
-    import sqlalchemy as sa
-
-    engine = sa.create_engine(conn_str)
+    engine = pinned_engine(conn_str)
+    raw, cursor, transaction_id = open_snapshot_transaction(engine)
     check_declared_columns(engine, tables)
     source_counts = count_source_rows(engine, tables)
 
-    load_timestamp = args.load_timestamp or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    load_timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
     out_dir = Path(args.output_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     clear_previous_run(out_dir)
 
+    # Staged locally so the manifest's SHA256 covers exactly the bytes `seed_bronze` uploads.
     staging = out_dir / "_dlt"
     pipeline = dlt.pipeline(
         pipeline_name="wwi_snapshot",
@@ -188,7 +259,7 @@ def main() -> int:
         schema, table = entry["source"].split(".")
         resources.append(
             sql_table(
-                credentials=conn_str,
+                credentials=engine,
                 schema=schema,
                 table=table,
                 included_columns=entry["columns"],
@@ -198,8 +269,17 @@ def main() -> int:
             ).with_name(entry["output"])
         )
 
-    info = pipeline.run(resources, loader_file_format="parquet")
-    print(info)
+    # Split rather than `pipeline.run` so the transaction ends with the reads. workers=1 is
+    # correctness, not speed: all resources share one connection.
+    pipeline.extract(resources, loader_file_format="parquet", workers=1)
+
+    # Before anything is published: the files would be each valid and collectively wrong.
+    assert_same_transaction(cursor, transaction_id)
+    cursor.execute("COMMIT TRANSACTION")
+    raw.close()
+
+    pipeline.normalize()
+    print(pipeline.load())
 
     written = flatten_output(staging, out_dir, tables)
 
@@ -212,7 +292,7 @@ def main() -> int:
             {
                 "schema_version": schema_version,
                 "load_timestamp": load_timestamp,
-                "source_database": args.snapshot_db,
+                "source_database": args.source_db,
                 **source_facts,
                 "files": written,
             },

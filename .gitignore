@@ -32,10 +32,6 @@ package-lock.yml
 # describes it is tracked -- see data/snapshots/manifest.json.
 data/raw/
 
-# DuckDB build output: rebuilt from the snapshot by `dbt build`, never committed
-*.duckdb
-*.duckdb.wal
-
 __pycache__/
 *.py[cod]
 

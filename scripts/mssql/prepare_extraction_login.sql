@@ -43,9 +43,25 @@ IF @sql = N''
 EXEC sp_executesql @sql;
 GO
 
--- For ad-hoc reads only; the extraction reads a frozen snapshot instead.
+-- Metadata only. Without it sys.security_policies returns zero rows and raises nothing, so the
+-- extraction's load-mode guard would pass everything.
+GRANT VIEW DEFINITION TO [$(EXTRACT_LOGIN)];
+GO
+
+-- Required, not optional: the extraction reads every table in one snapshot transaction and
+-- refuses to fall back to READ COMMITTED. The database ships with this OFF.
 ALTER DATABASE [WideWorldImporters] SET ALLOW_SNAPSHOT_ISOLATION ON;
 GO
 
-PRINT 'Login $(EXTRACT_LOGIN) ready: db_datareader, snapshot isolation on, no UNMASK.';
+-- Prove the guard can see rather than asserting it. USER, not LOGIN: VIEW DEFINITION and
+-- sys.security_policies are both database-scoped.
+EXECUTE AS USER = '$(EXTRACT_LOGIN)';
+DECLARE @policies int = (SELECT COUNT(*) FROM sys.security_policies WHERE is_enabled = 1);
+REVERT;
+IF @policies = 0
+    RAISERROR('$(EXTRACT_LOGIN) reads 0 enabled security policies; VIEW DEFINITION did not take effect', 16, 1);
+PRINT 'Guard visibility confirmed: security policies visible to $(EXTRACT_LOGIN).';
+GO
+
+PRINT 'Login $(EXTRACT_LOGIN) ready: db_datareader, VIEW DEFINITION, snapshot isolation on, no UNMASK.';
 GO

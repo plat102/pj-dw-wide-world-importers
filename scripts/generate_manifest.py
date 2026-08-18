@@ -1,9 +1,8 @@
 """Describe a Parquet snapshot completely enough that a consumer can verify it later.
 
-Needs no credential: the source facts come from data/raw/_extraction.json, which only the
-extraction can know. The manifest is committed; the Parquet files are not.
+Source facts come from data/raw/_extraction.json. The manifest is committed; the Parquet is not.
 
-    python scripts/generate_manifest.py --input-dir data/raw --output data/snapshots/manifest.json
+    python -m scripts.generate_manifest       # or: make manifest
 """
 
 from __future__ import annotations
@@ -15,6 +14,8 @@ import sys
 from pathlib import Path
 
 import pyarrow.parquet as pq
+
+from scripts.snapshot_layout import snapshot_id
 
 CHUNK = 1024 * 1024
 
@@ -72,6 +73,9 @@ def main() -> int:
     manifest = {
         "schema_version": extraction["schema_version"],
         "snapshot_timestamp": extraction["load_timestamp"],
+        # Written out rather than left to each consumer to re-derive, so the layout format has
+        # exactly one definition -- scripts/snapshot_layout.py.
+        "snapshot_id": snapshot_id(extraction["load_timestamp"]),
         "mssql_version": extraction["mssql_version"],
         "delivery_time_form": extraction["delivery_time_form"],
         "table_count": len(tables),

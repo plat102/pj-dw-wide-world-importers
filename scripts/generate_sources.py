@@ -1,13 +1,9 @@
 #!/usr/bin/env python
 """Regenerate models/sources.yml from the snapshot manifest.
 
-The manifest is authoritative for column names and types. This projects it into the shape dbt
-wants, so the two can never disagree about what the snapshot contains.
+The manifest is authoritative for names and types; counts and checksums stay there, not here.
 
-Deliberately writes **no row counts, sizes or checksums**. Those are in the manifest, they change
-with every extraction, and a copy in a second file is a copy that goes stale.
-
-    uv run python scripts/generate_sources.py       # or: make sources
+    python -m scripts.generate_sources       # or: make sources
 """
 
 from __future__ import annotations
@@ -16,6 +12,8 @@ import argparse
 import json
 import sys
 from pathlib import Path
+
+from scripts.snapshot_layout import bronze_prefix
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = REPO_ROOT / "data" / "snapshots" / "manifest.json"
@@ -31,16 +29,14 @@ sources:
       sizes and checksums live in data/snapshots/manifest.json, which is authoritative; they are
       not repeated here.
     meta:
-      # The snapshot is addressed as s3:// in every environment. Only the endpoint and the
-      # credentials differ between a laptop, CI and a real cloud bucket -- and those live in the
-      # dbt profile, not here. Nothing in this file names the store behind the API.
-      external_location: "read_parquet('s3://{{ env_var('S3_BUCKET', 'wwi') }}/bronze/{name}.parquet')"
+      # s3:// in every environment; only the endpoint and credentials differ, and those live in
+      # the dbt profile. Nothing here names the store behind the API.
+      external_location: "read_parquet('s3://{{ env_var('S3_BUCKET', 'wwi') }}/__PREFIX__/{name}.parquet')"
     tables:
 """
 
-# The manifest records Arrow types, because that is what the extraction sees. dbt wants the
-# warehouse's own type names. Verified column by column against `describe select * from
-# read_parquet(...)` across every table in the snapshot -- no Arrow type maps to two DuckDB types.
+# Arrow types are what the extraction sees; dbt wants the warehouse's names. Checked column by
+# column against `describe select * from read_parquet(...)`: no Arrow type maps to two DuckDB types.
 ARROW_TO_DUCKDB = {
     "bool": "BOOLEAN",
     "date32[day]": "DATE",
@@ -84,7 +80,9 @@ def main() -> int:
         sys.exit(f"{manifest_path} does not exist -- run `make extract` first")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    lines = [HEADER]
+    # The snapshot id is baked in, so the models and the manifest cannot disagree about which
+    # snapshot is current: a new extraction writes a new prefix and `make sources` moves them on.
+    lines = [HEADER.replace("__PREFIX__", bronze_prefix(manifest))]
     for table in sorted(manifest["tables"]):
         lines.append(f"      - name: {table}\n")
         lines.append("        columns:\n")

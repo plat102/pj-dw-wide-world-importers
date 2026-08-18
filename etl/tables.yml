@@ -1,7 +1,5 @@
-# Tables in the Parquet snapshot, with an explicit column list each.
-# Columns are named rather than taken with *, so the schema is a deliberate artifact and
-# computed columns survive; geography and varbinary are excluded by type, not by name.
-# Editing this file changes the contract -- bump schema_version when you do.
+# Tables in the Parquet snapshot. Columns are named, not `*`, so the schema is deliberate and
+# computed columns survive. Editing this file changes the contract -- bump schema_version.
 
 schema_version: 1
 

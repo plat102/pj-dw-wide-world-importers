@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "snapshot_timestamp": "2026-08-16T13:29:42+00:00",
+  "snapshot_id": "20260816T132942Z",
   "mssql_version": "17.0.4075.5 RTM Standard Developer Edition (64-bit)",
   "delivery_time_form": "computed_column",
   "table_count": 21,
