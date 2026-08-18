@@ -1,0 +1,83 @@
+# Builds the warehouse on every pull request, on the same compose stack a laptop runs.
+# The real snapshot is never here, so bronze is seeded with zero-row Parquet -- see seed_bronze.py.
+
+name: build
+
+on:
+  pull_request:
+  push:
+    branches: [main, phase2]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # Local-only credentials for containers this job throws away. Not repository secrets: they
+      # guard nothing that outlives the runner.
+      S3_ACCESS_KEY: ci-access-key
+      S3_SECRET_KEY: ci-secret-key-not-a-real-credential
+      S3_ENDPOINT: localhost:8333
+      S3_BUCKET: wwi
+      S3_USE_SSL: "false"
+      CATALOG_USER: ducklake
+      CATALOG_PASSWORD: ci-catalog-password
+      CATALOG_DB: ducklake
+      CATALOG_HOST: localhost
+      CATALOG_PORT: "55432"
+      LAKE_PREFIX: lake
+      # MSSQL_CONNECTION_STRING is deliberately absent. The transform stage must never reach the
+      # source database, and a build that needs it would fail here rather than pass quietly.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install the pinned environment
+        run: make install
+
+      # $HOME/.dbt does not exist on a runner, and dbt_packages/ is gitignored while four models
+      # call dbt_utils. Without both steps the run stops at Parse.
+      - name: Point dbt at the sample profile
+        run: mkdir -p ~/.dbt && cp profiles.sample.yml ~/.dbt/profiles.yml
+
+      - name: Install dbt packages
+        run: make deps
+
+      - name: Check sources.yml still matches the manifest
+        run: make sources_check
+
+      - name: Start the object store and the DuckLake catalog
+        run: make up
+
+      - name: Seed bronze with the manifest's schema and no rows
+        run: make seed_bronze_empty
+
+      - name: Parse
+        # Cheap early signal for Jinja and YAML errors. Not a fix for the flake below.
+        run: make parse
+
+      - name: Build and test
+        # Only the manifest row-count test is excluded: it cannot hold on an empty seed. Every
+        # other test runs, including the mart's enforced contract.
+
+        # KNOWN FLAKE, not root-caused: a cold parse sometimes fails to infer the dependencies of
+        # the tests in tests/ and schedules them early. A re-run passes.
+        run: uv run dbt build --project-dir ./wide_world_importers_dw --exclude assert_staging_matches_manifest
+
+      - name: Report the warehouse shape
+        if: always()
+        run: make shape || true
+
+      - name: Container logs
+        if: failure()
+        run: docker compose logs --tail 100
+
+      - name: Stop the stack
+        if: always()
+        run: make clean_storage
