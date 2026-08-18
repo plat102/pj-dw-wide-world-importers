@@ -15,12 +15,12 @@ graph TB
     end
 
     subgraph Boundary["The contract"]
-        PARQUET[(data/raw/*.parquet<br/>21 tables)]
+        PARQUET[(s3://wwi/bronze/&lt;snapshot-id&gt;/*.parquet<br/>21 tables)]
         MANIFEST[manifest.json<br/>SHA256 + row count + types]
     end
 
-    subgraph Stage2["Stage 2 -- no source credential"]
-        DUCK[DuckDB 1.5<br/>reads Parquet in place]
+    subgraph Stage2["Stage 2 -- never reaches the source database"]
+        DUCK[DuckDB<br/>reads Parquet over the S3 API]
         STG[(main_stg<br/>staging + intermediate)]
         DWH[(main_dwh<br/>star schema)]
         MART[(main_mart<br/>wide mart, contract enforced)]
@@ -76,7 +76,7 @@ dashboard still points at it.
 
 | Layer            | Schema      | Purpose                                                    | Materialisation |
 | ---------------- | ----------- | ---------------------------------------------------------- | --------------- |
-| **Raw**          | —           | Parquet under `data/raw/`, read in place                    | none            |
+| **Raw**          | —           | Parquet under `s3://$S3_BUCKET/bronze/<snapshot-id>/`, read in place | none |
 | **Staging**      | `main_stg`  | One view per source table: renames and casts, no joins      | Views           |
 | **Intermediate** | `main_stg`  | Joins reused by more than one downstream model              | Views           |
 | **Analytics**    | `main_dwh`  | The star schema: dimensions, role-playing views, the fact   | Tables, and views for the three role-playing dimensions |
@@ -96,13 +96,29 @@ The BigQuery datasets `wwi_raw` / `wwi_stg` / `wwi_dwh` / `wwi_mart` are frozen 
 | ------------------- | ----------------------------- | -------------------------------------------------------------- |
 | **Source System**   | SQL Server 2025               | OLTP database (Wide World Importers), read from a frozen snapshot |
 | **Extraction**      | dlt 1.30 → Parquet            | 21 tables, checksummed into `data/snapshots/manifest.json`      |
-| **Data Warehouse**  | DuckDB 1.5                    | Single-file columnar engine, reads the Parquet in place         |
+| **Object Store**    | SeaweedFS (S3 API)            | Holds the bronze snapshot and the lake's Parquet                |
+| **Data Warehouse**  | DuckLake on DuckDB            | Parquet on the object store, catalog in Postgres 16             |
 | **Transformation**  | dbt Core 1.12 + dbt-duckdb 1.11 | SQL-based ELT transformations                                 |
 | **Version Control** | Git / GitHub                  | Code versioning and collaboration                              |
 | **Visualization**   | Looker Studio                 | Self-service BI dashboards (frozen against the BigQuery warehouse) |
 
-`dbt-bigquery` is still installed. It is kept so the frozen BigQuery models still compile as an exhibit,
-not because anything builds against BigQuery.
+The `dev` (BigQuery) profile target is kept as an exhibit of the frozen BigQuery warehouse.
+`dbt-bigquery` itself is **not** installed: it pulled 45 packages into the lock file for a target
+nothing builds against.
+
+**The object store is a replaceable detail, and that was tested rather than assumed.** The whole
+stack was brought up against a second S3-compatible implementation (RustFS) with one compose
+override that changed the image and nothing else -- same credentials, same bucket, same dbt
+profile, same models -- and all 26 relations came out with identical row counts. The override file
+is not kept in the repository: it was evidence for a design claim, not something that runs. The
+claim it supports is that nothing above `docker-compose.yml` names the product behind the endpoint.
+
+**`-volume.max=10` in `docker-compose.yml` is a real ceiling**, not a formality: at
+`volumeSizeLimitMB=1024` that is 10 GiB, and every build writes a full copy of each table into the
+lake. A store with no free volumes left refuses writes to a new bucket outright and will eventually
+refuse them to an existing one. `make compact` is what keeps the store writable; the seven-day
+default window never fires on a machine that rebuilds daily, so pass `--older-than-days` when you
+mean it.
 
 ## Data Model
 

@@ -119,28 +119,45 @@ flowchart LR
 
 ## 🚀 Quick Start
 
-**Requirements:** Python 3.11+ and [uv](https://docs.astral.sh/uv/). No cloud account, and no SQL
-Server unless you want to refresh the snapshot.
+**Requirements:** Python 3.11+, [uv](https://docs.astral.sh/uv/), and Docker. No cloud account,
+and no SQL Server unless you want to refresh the snapshot.
 
 ```bash
-# Install the pinned environment
+# Install the pinned environment and the dbt packages
 make install
+make deps
 
-# Point dbt at a profile (the duckdb target is the default)
+# Point dbt at a profile. Every value comes from .env, so there is nothing to fill in.
+cp .env.example .env      # then set the store and catalog credentials
 cp profiles.sample.yml ~/.dbt/profiles.yml
 
-# Check the Parquet snapshot against its manifest, then build
-make verify
+# Start the object store and the DuckLake catalog, and create the bucket
+make up
+
+# Put a snapshot in front of the build, then build
+make seed_bronze_empty
 make build
 ```
 
-`make build` writes `wwi.duckdb` in the repository root and runs 26 models and 50 tests. Query it
-with `duckdb wwi.duckdb`, or run `make shape` to see every relation with its row and column count.
+**The Parquet snapshot is not in this repository and never will be** -- only the manifest that
+describes it is. So a fresh clone seeds bronze with zero-row Parquet carrying the manifest's exact
+columns and types. Every model still executes, so a renamed or missing column fails on a binder
+error; anything data-dependent passes trivially on no rows. That is also what CI does.
 
-Two more worth knowing:
+With the real snapshot in `data/raw/`, `make seed_bronze` publishes it to the store instead and the
+build produces the warehouse for real: 26 models and 50 tests.
+
+The warehouse is a DuckLake lakehouse -- Parquet on the object store, catalog in Postgres -- not a
+file in this directory. `make shape` prints every relation with its row and column count, read
+through a fresh connection that attaches nothing but the catalog and the store.
+
+Worth knowing:
 
 ```bash
+make verify     # check the published snapshot against its manifest
 make shape      # every relation with its row and column count
-make compare    # build twice, diff every relation -- proves the build is deterministic
-make extract    # refresh the snapshot from SQL Server; needs the source and sa
+make compare    # build twice, diff every table -- proves the build is deterministic
+make compact    # expire old lake snapshots and reclaim the files they held
+make down       # stop the stack, keeping the data (clean_storage deletes it)
+make extract    # refresh the snapshot from SQL Server; one read-only login, no sa
 ```

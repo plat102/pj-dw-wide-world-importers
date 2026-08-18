@@ -187,10 +187,10 @@ Where a reader genuinely wants numbers, give them the command:
 - `make verify` — the snapshot against the manifest's counts and checksums
 - `data/snapshots/manifest.json` — authoritative for source row counts, sizes and types
 
-**One exception, and it is not this repository.** Decision records — ADRs, change proposals,
-measurement logs — *should* carry numbers, stamped with the date and the data span they were taken
-over. Those documents say "on this date we measured X, and X decided Y". A stale number there is a
-correct record of history, not a lie about the present.
+**This rule is about documentation that describes the present.** A document whose job is to record
+a dated measurement is a different thing and should carry its numbers: it says "on this date we
+measured X", so a stale number there is history rather than a false claim. There are none in this
+repository — everything here describes what the code does now.
 
 ### Testing
 
