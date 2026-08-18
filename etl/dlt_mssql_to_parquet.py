@@ -269,9 +269,10 @@ def main() -> int:
             ).with_name(entry["output"])
         )
 
-    # Split rather than `pipeline.run` so the transaction ends with the reads. workers=1 is
-    # correctness, not speed: all resources share one connection.
-    pipeline.extract(resources, loader_file_format="parquet", workers=1)
+    # Split rather than `pipeline.run` so the transaction ends with the reads. One resource per
+    # call, because dlt interleaves them within a call and one connection holds one result set.
+    for resource in resources:
+        pipeline.extract([resource], loader_file_format="parquet", workers=1)
 
     # Before anything is published: the files would be each valid and collectively wrong.
     assert_same_transaction(cursor, transaction_id)

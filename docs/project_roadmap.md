@@ -68,8 +68,10 @@ confident it feels.
 ### Technical Requirements
 
 - ✅ **Reproducibility** — two builds of one snapshot produce identical output. 26 relations
-  compared, 0 differing: `make compare`. Two extractions of the same source produce byte-identical
-  Parquet.
+  compared, 0 differing: `make compare`. Two extractions of the same source produce identical row
+  counts and identical column sets; **not identical bytes**, because the source is read without an
+  `ORDER BY` and physical row order is not guaranteed. Measured 2026-08-18: 5 of 21 tables came
+  back in a different order, same rows.
 - ✅ **Maintainability** — transformations are SQL in version control, and every documented claim
   carries the command that shows it.
 - 🚧 **Scalability** — the snapshot already carries 21 tables, including the six the supply-chain
@@ -109,8 +111,9 @@ Each claim below is followed by the command that shows it. Anything without one 
 ### Built
 
 - **Sales Order star schema on DuckDB.** 26 models, `dbt build` green: `make build`.
-- **Reproducible extraction.** 21 tables, 277 columns, out of a frozen database snapshot in under
-  a minute. Two runs of the same source produce byte-identical Parquet: `make extract`.
+- **Reproducible extraction.** 21 tables, 277 columns, read inside one snapshot-isolation
+  transaction in under a minute: `make extract`. Two runs agree on row counts and column sets, not
+  on bytes — row order is not pinned.
 - **A snapshot contract.** SHA256, row count and column type per table in
   `data/snapshots/manifest.json`: `make verify`.
 - **50 dbt tests.** Keys, ten referential tests from the fact, manifest row-count parity, a mart
