@@ -8,9 +8,9 @@ checksummed Parquet snapshot `<br>`
 **Next**: move the snapshot onto object storage; then supply-chain facts
 
 > This file describes **state**, not numbered phases. It used to call the DuckDB re-platform
-> "Phase 2: Infrastructure Automation" while the project plan meant something else by Phase 2, and
-> two documents numbering the same phases differently is worse than neither doing it. Phase
-> numbering belongs to the project plan; this file says what is true.
+> "Phase 2: Infrastructure Automation" while that number meant something else elsewhere, and two
+> documents numbering the same phases differently is worse than neither doing it. Nothing in this
+> repository numbers phases; it says what is true instead.
 
 ---
 
@@ -61,8 +61,9 @@ confident it feels.
 - ✅ **Flexibility** — `mart_sales_order_line` is one table, 70 columns, no join needed. Its shape
   is declared under `contract: enforced`.
 - 🚧 **Performance** — "dashboard queries under 5 seconds" was never measured, and the dashboard it
-  referred to points at the frozen BigQuery build. What *is* measured is the build, and it sits
-  comfortably inside the 60-second budget CI will hold it to.
+  referred to points at the frozen BigQuery build. What *is* measured is the build: `make build`
+  reports its own wall clock, and `make compare` runs it twice. CI enforces no time limit on it
+  beyond the job timeout.
 
 ### Technical Requirements
 

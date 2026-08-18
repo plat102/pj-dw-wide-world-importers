@@ -4,17 +4,25 @@ Every column below was read out of a built warehouse, not transcribed from a des
 DuckDB types. Reproduce with:
 
 ```bash
-make build
-duckdb wwi.duckdb -c "select table_schema, table_name, column_name, data_type
-                      from information_schema.columns
-                      where table_schema like 'main_%' order by 1, 2, ordinal_position"
+make up && make build
+make shape          # every relation with its row and column count
+```
+
+For the column list, attach the lake from any DuckDB session -- the catalog and the store are all
+it takes, which is the point of keeping the warehouse there rather than in a local file:
+
+```sql
+select table_schema, table_name, column_name, data_type
+from information_schema.columns
+where table_catalog = 'lake' order by 1, 2, ordinal_position;
 ```
 
 Row counts are not in this file on purpose — see [Counts](#counts) at the end.
 
 ## Schemas
 
-The warehouse is a DuckDB database at `wwi.duckdb`, built by `dbt build`. Layers are schemas
+The warehouse is a DuckLake lakehouse -- Parquet on the object store, catalog in Postgres --
+built by `dbt build`. Layers are schemas
 inside it, not separate datasets.
 
 | Schema       | Layer        | Contents                                                        |
