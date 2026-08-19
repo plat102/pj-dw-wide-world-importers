@@ -173,7 +173,7 @@ nothing depends on it.
   models, a grain test on the mart, and a calendar test pinning `dim_date`.
 - **Contract**: `mart_sales_order_line` declares all 70 columns and their types with
   `contract: enforced`. An upstream column that would change the mart's shape fails the build.
-- **Determinism**: `make compare` builds twice into two databases and diffs every relation,
+- **Determinism**: `make test` builds twice into the lake and diffs every relation,
   naming the column when one differs. 23 relations, 0 differing.
 - **Snapshot integrity**: `make verify` checks the Parquet against the SHA256 and row counts in
   `data/snapshots/manifest.json`. Row counts are the cheap half; the checksum catches the rest.

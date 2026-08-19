@@ -109,15 +109,22 @@ Fully denormalized fact with all dimension attributes joined, eliminating need f
 *Note: This shows logical data transformation dependencies. For physical infrastructure flow, see technical_design.md*
 
 ```
-Source (SQL Server)             Staging (Views)                 Analytics (Tables)
-─────────────────────           ───────────────────             ──────────────────
-sales.Orders            ──>     stg_sales_order          ──┐
-sales.OrderLines        ──>     stg_sales_order_line     ──┼──> fact_sales_order_line
-                                                           │
-sales.Customers         ──>     stg_sales_customer       ──┴──> dim_customer
-warehouse.StockItems    ──>     stg_warehouse_stock_item   ───> dim_stock_item
-application.People      ──>     stg_application_person     ───> dim_person
-warehouse.PackageTypes  ──>    stg_warehouse_package_type    ─> dim_package_type
-(Generated)                                                ───> dim_date
+Source (SQL Server)          Staging (Views)              Intermediate      Analytics (Tables)
+──────────────────────       ──────────────────────       ─────────────     ──────────────────
+sales.Orders            ──>  stg_sales_order         ──┐
+sales.OrderLines        ──>  stg_sales_order_line    ──┼───────────────────> fact_sales_order_line
+                                                       │
+sales.Customers         ──>  stg_sales_customer      ──┴───────────────────> dim_customer
+application.Cities      ──>  stg_application_city    ──┐                      ▲
+application.StateProv…  ──>  stg_application_state…  ──┼──> int_city_flattened┘
+application.Countries   ──>  stg_application_country ──┘
+warehouse.StockItems    ──>  stg_warehouse_stock_item ────────────────────── > dim_stock_item
+application.People      ──>  stg_application_person   ────────────────────── > dim_person
+warehouse.PackageTypes  ──>  stg_warehouse_package_ty ────────────────────── > dim_package_type
+(Generated)                                            ────────────────────── > dim_date
 ```
+
+`int_city_flattened` is the only intermediate model: it joins city, state/province and country so
+`dim_customer` can resolve an address without repeating a three-way join. It is reachable from
+`dim_customer` alone, which is why it is one model rather than a layer.
 
