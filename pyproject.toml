@@ -2,7 +2,10 @@
 name = "wide-world-importers-dw"
 version = "0.2.0"
 description = "Kimball star schema over the Wide World Importers sample OLTP"
-requires-python = ">=3.11"
+# 3.12, not 3.11, because 3.11 is what the file used to claim and nothing ever ran it. The local
+# interpreter, uv.lock and CI are all 3.12; a floor nothing tests is a promise to a stranger who
+# clones this. Widen it again by adding 3.11 to the quality job's matrix, not by editing this line.
+requires-python = ">=3.12"
 
 dependencies = [
     # transform
@@ -17,6 +20,16 @@ dependencies = [
     "python-dotenv>=1.0",
     "pyyaml>=6",
 ]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+# Without this the project is never installed, only its dependencies are -- so `python -m scripts.x`
+# resolved through the current working directory, and every make recipe silently required the repo
+# root. Declaring it makes `import scripts` work from anywhere.
+[tool.setuptools]
+packages = ["scripts"]
 
 [tool.uv]
 # uv.lock is the source of truth. Regenerate with `uv lock`, install with `uv sync`.

@@ -170,7 +170,10 @@ def main() -> int:
 
     mb = manifest["total_size_bytes"] / 1048576
     print(f"{out}: {len(tables)} tables, {manifest['total_row_count']:,} rows, {mb:.2f} MB")
-    print(f"  reduced: {', '.join(f'{n} {tables[n]["row_count"]:,}' for n in reduced)}")
+    # Built before the f-string rather than inside it: nesting the same quote three deep parses
+    # only on 3.12+, and this file is not the place to raise the floor for the whole project.
+    reduced_counts = ", ".join(f"{name} {tables[name]['row_count']:,}" for name in reduced)
+    print(f"  reduced: {reduced_counts}")
     print(f"  snapshot_id: {manifest['snapshot_id']} (derived from {manifest['derived_from']})")
     return 0
 

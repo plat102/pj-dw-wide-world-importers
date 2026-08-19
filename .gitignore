@@ -45,6 +45,9 @@ data/raw/
 __pycache__/
 *.py[cod]
 
+# setuptools writes this when the project is installed into the venv. Build output, not source.
+*.egg-info/
+
 # Local credentials for the object store, the catalog and the source. `.env.example` is tracked
 # and holds no value; `.env` holds the values and never is. `*.env` above already covers it, but
 # the name is spelled out because it is the file that matters most.
