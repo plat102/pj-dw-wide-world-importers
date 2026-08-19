@@ -99,12 +99,15 @@ def check_table(source, spec: dict) -> str | None:
 
 
 def main() -> int:
-    argparse.ArgumentParser(description=__doc__).parse_args()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--manifest", default=str(MANIFEST))
+    args = parser.parse_args()
 
-    if not MANIFEST.exists():
-        print(f"FAIL manifest: {MANIFEST} not found", file=sys.stderr)
+    manifest_path = Path(args.manifest)
+    if not manifest_path.exists():
+        print(f"FAIL manifest: {manifest_path} not found", file=sys.stderr)
         return 2
-    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     source = StoreSource(manifest)
 
     failures: list[str] = []

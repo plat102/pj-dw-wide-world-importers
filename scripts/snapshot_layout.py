@@ -20,3 +20,14 @@ def snapshot_id(snapshot_timestamp: str) -> str:
 def bronze_prefix(manifest: dict) -> str:
     """The snapshot's key prefix, with no bucket and no leading or trailing slash."""
     return f"bronze/{manifest['snapshot_id']}"
+
+
+def bronze_prefix_template(manifest: dict) -> str:
+    """The same prefix as Jinja, with this manifest's id as the default.
+
+    sources.yml renders through this so one repository can address two snapshots -- the shipped one
+    and the committed demo fixture -- without the models knowing which they read. The default is
+    written from the manifest rather than typed, so the generated file still cannot disagree with
+    the manifest it was generated from.
+    """
+    return "bronze/{{ env_var('SNAPSHOT_ID', '" + manifest["snapshot_id"] + "') }}"

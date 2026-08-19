@@ -13,7 +13,7 @@ import json
 import sys
 from pathlib import Path
 
-from scripts.snapshot_layout import bronze_prefix
+from scripts.snapshot_layout import bronze_prefix_template
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = REPO_ROOT / "data" / "snapshots" / "manifest.json"
@@ -80,9 +80,10 @@ def main() -> int:
         sys.exit(f"{manifest_path} does not exist -- run `make extract` first")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    # The snapshot id is baked in, so the models and the manifest cannot disagree about which
-    # snapshot is current: a new extraction writes a new prefix and `make sources` moves them on.
-    lines = [HEADER.replace("__PREFIX__", bronze_prefix(manifest))]
+    # The snapshot id is the default rather than a literal, so the models and the manifest still
+    # cannot disagree about which snapshot is current -- a new extraction writes a new default and
+    # `make sources` moves them on -- while SNAPSHOT_ID can point one build at the demo fixture.
+    lines = [HEADER.replace("__PREFIX__", bronze_prefix_template(manifest))]
     for table in sorted(manifest["tables"]):
         lines.append(f"      - name: {table}\n")
         lines.append("        columns:\n")
