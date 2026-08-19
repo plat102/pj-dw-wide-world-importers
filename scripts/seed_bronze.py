@@ -85,10 +85,10 @@ def seed_empty(manifest: dict, bucket: str, prefix: str) -> list[str]:
     return problems
 
 
-def upload(manifest: dict, fs, bucket: str, prefix: str) -> list[str]:
+def upload(manifest: dict, fs, bucket: str, prefix: str, data_dir: Path) -> list[str]:
     problems: list[str] = []
     for table, entry in sorted(manifest["tables"].items()):
-        local = RAW_DIR / entry["file"]
+        local = data_dir / entry["file"]
         if not local.exists():
             problems.append(f"{table}: {local} is missing locally")
             continue
@@ -116,11 +116,18 @@ def main() -> int:
         action="store_true",
         help="with --empty, overwrite a published snapshot that is already on the store",
     )
+    # A manifest and the Parquet it describes are passed separately because they do not live
+    # together: the snapshot's manifest is committed while its Parquet is not, so they sit in
+    # different directories. The demo fixture keeps both in one place; neither path is special-cased.
+    parser.add_argument("--manifest", default=str(MANIFEST))
+    parser.add_argument("--data-dir", default=str(RAW_DIR))
     args = parser.parse_args()
 
-    if not MANIFEST.exists():
-        sys.exit(f"{MANIFEST} does not exist -- run `make extract` first")
-    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    manifest_path = Path(args.manifest)
+    data_dir = Path(args.data_dir)
+    if not manifest_path.exists():
+        sys.exit(f"{manifest_path} does not exist -- run `make extract` first")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     bucket = require("S3_BUCKET")
     fs = s3fs_client()
@@ -139,7 +146,7 @@ def main() -> int:
         problems = seed_empty(manifest, bucket, prefix)
         verb = f"wrote {total} zero-row tables"
     else:
-        problems = upload(manifest, fs, bucket, prefix)
+        problems = upload(manifest, fs, bucket, prefix, data_dir)
         verb = f"uploaded {total} tables"
 
     if problems:

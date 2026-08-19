@@ -10,7 +10,7 @@ sources:
     meta:
       # s3:// in every environment; only the endpoint and credentials differ, and those live in
       # the dbt profile. Nothing here names the store behind the API.
-      external_location: "read_parquet('s3://{{ env_var('S3_BUCKET', 'wwi') }}/bronze/20260818T125822Z/{name}.parquet')"
+      external_location: "read_parquet('s3://{{ env_var('S3_BUCKET', 'wwi') }}/bronze/{{ env_var('SNAPSHOT_ID', '20260818T125822Z') }}/{name}.parquet')"
     tables:
       - name: application__cities
         columns:
