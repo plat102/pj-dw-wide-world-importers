@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import sys
 
-from scripts.warehouse import connect, data_path
+from scripts.warehouse import connect, data_path, scalar
 
 
 def main() -> int:
@@ -56,7 +56,7 @@ def main() -> int:
             f"{'table' if kind == 'BASE TABLE' else 'view'}"
         )
 
-    snapshot = conn.execute("select max(snapshot_id) from ducklake_snapshots('lake')").fetchone()[0]
+    snapshot = scalar(conn, "select max(snapshot_id) from ducklake_snapshots('lake')")
     print(f"\n{len(relations)} relations, {sum(columns.values())} columns total")
     print(f"lake at {data_path()}, snapshot {snapshot}")
     return 0

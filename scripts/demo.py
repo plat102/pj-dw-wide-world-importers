@@ -13,12 +13,17 @@ has to know that a second snapshot exists.
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+from scripts.warehouse import connect, scalar
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURE_DIR = REPO_ROOT / "data" / "demo"
@@ -27,31 +32,33 @@ DBT_DIR = REPO_ROOT / "wide_world_importers_dw"
 SAMPLE_PROFILE = REPO_ROOT / "profiles.sample.yml"
 PROFILE = DBT_DIR / "profiles.yml"
 
-step_number = 0
+# A counter rather than a module global reassigned from inside the function: same output, and
+# nothing else can rebind it.
+_step_numbers = itertools.count(1)
 
 
 def step(title: str) -> None:
-    global step_number
-    step_number += 1
-    print(f"\n\033[1m[{step_number}] {title}\033[0m", flush=True)
+    print(f"\n\033[1m[{next(_step_numbers)}] {title}\033[0m", flush=True)
 
 
 def run(command: list[str], env: dict[str, str] | None = None) -> None:
     print(f"    $ {' '.join(command)}", flush=True)
-    result = subprocess.run(command, cwd=REPO_ROOT, env=env)
+    # check=False: the returncode is handled here, with a message naming the step that failed.
+    result = subprocess.run(command, cwd=REPO_ROOT, env=env, check=False)
     if result.returncode:
-        sys.exit(f"\n{command[0]} failed with exit {result.returncode} -- stopping before the next step")
+        sys.exit(
+            f"\n{command[0]} failed with exit {result.returncode} -- "
+            "stopping before the next step"
+        )
 
 
 def load_env() -> dict[str, str]:
     """Read .env into this process so every subprocess inherits it.
 
-    The file wins over the surrounding shell, which is what `-include .env` plus `export` does in the
-    Makefile. Matching it matters: a stale S3_ENDPOINT in a shell would otherwise point half the
-    steps at one store and half at another.
+    The file wins over the surrounding shell, which is what `-include .env` plus `export` does
+    in the Makefile. Matching it matters: a stale S3_ENDPOINT in a shell would otherwise point
+    half the steps at one store and half at another.
     """
-    from dotenv import load_dotenv
-
     load_dotenv(REPO_ROOT / ".env", override=True)
     return dict(os.environ)
 
@@ -86,31 +93,33 @@ def assert_lake_is_ours(fixture: dict) -> None:
     fooled by a coincidence, and the cost of being fooled is rebuilding tables from the fixture,
     which is what the demo does anyway.
     """
-    from scripts.warehouse import connect
-
     probe = "main_stg.stg_sales_order_line"
     expected = fixture["tables"]["sales__order_lines"]["row_count"]
     conn = connect()
     try:
-        relations = conn.execute(
-            "select count(*) from information_schema.tables where table_catalog = 'lake'"
-        ).fetchone()[0]
+        relations = scalar(
+            conn, "select count(*) from information_schema.tables where table_catalog = 'lake'"
+        )
         if not relations:
             print("    the lake is empty -- nothing to overwrite")
             return
         try:
-            found = conn.execute(f"select count(*) from {probe}").fetchone()[0]
+            found = scalar(conn, f"select count(*) from {probe}")
         except Exception:
             found = None
     finally:
         conn.close()
 
     if found == expected:
-        print(f"    the lake holds {relations} relations already built from this fixture -- rebuilding")
+        print(
+            f"    the lake holds {relations} relations already built from this fixture"
+            " -- rebuilding"
+        )
         return
     sys.exit(
         f"the lake already holds {relations} relation(s) that this fixture did not build "
-        f"({probe} has {found if found is not None else 'no'} rows, the fixture has {expected:,}).\n"
+        f"({probe} has {found if found is not None else 'no'} rows, "
+        f"the fixture has {expected:,}).\n"
         "  The demo would write fixture rows beside them and nothing would say which is which.\n"
         "  Run `make clean_storage` to discard the current warehouse, or run the demo in a fresh "
         "clone."
@@ -182,7 +191,10 @@ def main() -> int:
 
     step("Verify what landed against the fixture's own checksums")
     run(
-        ["uv", "run", "python", "-m", "scripts.verify_snapshot", "--manifest", str(FIXTURE_MANIFEST)],
+        [
+            "uv", "run", "python", "-m", "scripts.verify_snapshot",
+            "--manifest", str(FIXTURE_MANIFEST),
+        ],
         env=env,
     )
 
@@ -205,16 +217,16 @@ def main() -> int:
     elapsed = time.monotonic() - started
     catalog_port = env.get("CATALOG_PORT", "55432")
     print(
-        f"\n\033[1mDone in {elapsed:.0f}s.\033[0m The warehouse is a DuckLake lakehouse: Parquet on "
-        "the object store, catalog in Postgres.\n"
+        f"\n\033[1mDone in {elapsed:.0f}s.\033[0m The warehouse is a DuckLake lakehouse: "
+        "Parquet on the object store, catalog in Postgres.\n"
         "\nQuery it from anything that speaks DuckDB. The shortest route:\n"
         "    uv run python -c \"from scripts.warehouse import connect; "
         "print(connect().sql('select count(*) from main_mart.mart_sales_order_line'))\"\n"
         f"\nFor a SQL client, attach the catalog on port {catalog_port} and the bucket over the S3 "
         "API; `make shape` above prints every relation it will see.\n"
         "\nThis was built from the committed demo fixture, not the full snapshot -- so the row "
-        "counts are the fixture's. With the real snapshot in data/raw/, `make extract` publishes it "
-        "and `make build` produces the warehouse in full."
+        "counts are the fixture's. With the real snapshot in data/raw/, `make extract` "
+        "publishes it and `make build` produces the warehouse in full."
     )
     return 0
 

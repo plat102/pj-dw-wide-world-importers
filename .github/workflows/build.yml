@@ -10,7 +10,21 @@ on:
     branches: [main, phase2]
 
 jobs:
+  # Fails in seconds and needs no Docker, so a lint or type error never waits on a container stack.
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+      - run: make install
+      - name: Lint, types, unit tests, and sources.yml drift
+        run: make check
+
   build:
+    needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -51,9 +65,6 @@ jobs:
 
       - name: Install dbt packages
         run: make deps
-
-      - name: Check sources.yml still matches the manifest
-        run: make sources_check
 
       - name: Start the object store and the DuckLake catalog
         run: make up

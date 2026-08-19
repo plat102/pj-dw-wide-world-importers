@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Give a fresh clone a working `.env` so the demo is one command rather than one command and a form.
+"""Give a fresh clone a working `.env`, so the demo is one command and not also a form.
 
 Fills only the credentials that guard containers this repository starts and throws away. The source
 connection string is left empty on purpose: the transform half must never reach the source, and a
@@ -49,7 +49,10 @@ def main() -> int:
 
     ENV.write_text("".join(lines), encoding="utf-8")
     ENV.chmod(0o600)
-    print(f"wrote {ENV.name} from {EXAMPLE.name}: {filled} credentials generated, source left unset")
+    print(
+        f"wrote {ENV.name} from {EXAMPLE.name}: {filled} credentials generated, "
+        "source left unset"
+    )
     print("  docker-compose.yml still has no defaults -- an unset credential stops the stack.")
     return 0
 

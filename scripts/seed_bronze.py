@@ -17,7 +17,7 @@ from pathlib import Path
 
 from scripts.generate_sources import ARROW_TO_DUCKDB
 from scripts.snapshot_layout import bronze_prefix
-from scripts.warehouse import require, s3fs_client, store_connection
+from scripts.warehouse import require, s3fs_client, scalar, store_connection
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = REPO_ROOT / "data" / "snapshots" / "manifest.json"
@@ -79,7 +79,7 @@ def seed_empty(manifest: dict, bucket: str, prefix: str) -> list[str]:
                 f"missing {[c for c in expected if c not in actual]}, "
                 f"extra {[c for c in actual if c not in expected]}, retyped {retyped}"
             )
-        rows = conn.execute(f"select count(*) from read_parquet('{target}')").fetchone()[0]
+        rows = scalar(conn, f"select count(*) from read_parquet('{target}')")
         if rows:
             problems.append(f"{table}: expected zero rows, got {rows}")
     return problems
@@ -118,7 +118,7 @@ def main() -> int:
     )
     # A manifest and the Parquet it describes are passed separately because they do not live
     # together: the snapshot's manifest is committed while its Parquet is not, so they sit in
-    # different directories. The demo fixture keeps both in one place; neither path is special-cased.
+    # different directories. The fixture keeps both in one place; neither is special-cased.
     parser.add_argument("--manifest", default=str(MANIFEST))
     parser.add_argument("--data-dir", default=str(RAW_DIR))
     args = parser.parse_args()
