@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.warehouse import catalog_dsn, data_path, endpoint_url, use_ssl
+from config.settings import catalog_dsn, data_path, endpoint_url, use_ssl
 
 
 @pytest.mark.parametrize("value", ["1", "true", "TRUE", "Yes", " true ", "1 "])

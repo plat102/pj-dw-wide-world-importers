@@ -7,28 +7,26 @@ snapshot is not here and is not required. What is required is git, make, uv and 
 The fixture's id and manifest path are bound in this one place, so nothing else in the repository
 has to know that a second snapshot exists.
 
-    python -m scripts.demo       # or: make demo
+    wwi demo       # or: make demo
 """
 
 from __future__ import annotations
 
-import argparse
 import itertools
 import json
 import os
 import subprocess
-import sys
 import time
-from pathlib import Path
 
-from dotenv import load_dotenv
+from config import settings
+from connectors import ducklake, s3
+from contracts import manifest as manifest_contract
+from utils.exceptions import ToolingError
 
-from scripts.warehouse import connect, scalar
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-FIXTURE_DIR = REPO_ROOT / "data" / "demo"
-FIXTURE_MANIFEST = FIXTURE_DIR / "manifest.json"
-DBT_DIR = REPO_ROOT / "wide_world_importers_dw"
+REPO_ROOT = settings.REPO_ROOT
+FIXTURE_DIR = settings.DEMO_DIR
+FIXTURE_MANIFEST = settings.DEMO_MANIFEST
+DBT_DIR = settings.DBT_DIR
 SAMPLE_PROFILE = REPO_ROOT / "profiles.sample.yml"
 PROFILE = DBT_DIR / "profiles.yml"
 
@@ -46,9 +44,8 @@ def run(command: list[str], env: dict[str, str] | None = None) -> None:
     # check=False: the returncode is handled here, with a message naming the step that failed.
     result = subprocess.run(command, cwd=REPO_ROOT, env=env, check=False)
     if result.returncode:
-        sys.exit(
-            f"\n{command[0]} failed with exit {result.returncode} -- "
-            "stopping before the next step"
+        raise ToolingError(
+            f"{command[0]} failed with exit {result.returncode} -- stopping before the next step"
         )
 
 
@@ -59,6 +56,8 @@ def load_env() -> dict[str, str]:
     in the Makefile. Matching it matters: a stale S3_ENDPOINT in a shell would otherwise point
     half the steps at one store and half at another.
     """
+    from dotenv import load_dotenv  # noqa: PLC0415 -- only the demo reads a .env from disk
+
     load_dotenv(REPO_ROOT / ".env", override=True)
     return dict(os.environ)
 
@@ -71,7 +70,7 @@ def assert_no_source_credential() -> None:
     """
     value = os.environ.get("MSSQL_CONNECTION_STRING", "").strip()
     if value:
-        sys.exit(
+        raise ToolingError(
             "MSSQL_CONNECTION_STRING is set. The demo builds from the committed fixture and must "
             "not be able to reach the source; unset it and run again."
         )
@@ -95,16 +94,14 @@ def assert_lake_is_ours(fixture: dict) -> None:
     """
     probe = "main_stg.stg_sales_order_line"
     expected = fixture["tables"]["sales__order_lines"]["row_count"]
-    conn = connect()
+    conn = ducklake.connect()
     try:
-        relations = scalar(
-            conn, "select count(*) from information_schema.tables where table_catalog = 'lake'"
-        )
+        relations = ducklake.relation_count(conn)
         if not relations:
             print("    the lake is empty -- nothing to overwrite")
             return
         try:
-            found = scalar(conn, f"select count(*) from {probe}")
+            found = s3.scalar(conn, f"select count(*) from {probe}")
         except Exception:
             found = None
     finally:
@@ -116,7 +113,7 @@ def assert_lake_is_ours(fixture: dict) -> None:
             " -- rebuilding"
         )
         return
-    sys.exit(
+    raise ToolingError(
         f"the lake already holds {relations} relation(s) that this fixture did not build "
         f"({probe} has {found if found is not None else 'no'} rows, "
         f"the fixture has {expected:,}).\n"
@@ -126,28 +123,20 @@ def assert_lake_is_ours(fixture: dict) -> None:
     )
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--keep-warehouse",
-        action="store_true",
-        help="skip the provenance guard; the fixture will build beside whatever is already there",
-    )
-    args = parser.parse_args()
-
+def walkthrough(keep_warehouse: bool = False) -> str:
     if not FIXTURE_MANIFEST.exists():
-        sys.exit(
+        raise ToolingError(
             f"{FIXTURE_MANIFEST} is missing. It is committed, so this is a partial checkout rather "
             "than a missing extraction."
         )
-    fixture = json.loads(FIXTURE_MANIFEST.read_text(encoding="utf-8"))
+    fixture = manifest_contract.load(FIXTURE_MANIFEST)
     started = time.monotonic()
 
     step("Install the pinned environment")
     run(["uv", "sync", "--frozen"])
 
     step("Make sure there is a .env to read")
-    run(["uv", "run", "python", "-m", "scripts.bootstrap_env"])
+    run(["uv", "run", "wwi", "bootstrap"])
     env = load_env()
     # sources.yml defaults to the shipped snapshot's prefix; this is what points it at the fixture.
     env["SNAPSHOT_ID"] = fixture["snapshot_id"]
@@ -173,7 +162,7 @@ def main() -> int:
     run(["make", "up"], env=env)
 
     step("Check the lake is empty, or ours")
-    if args.keep_warehouse:
+    if keep_warehouse:
         print("    skipped by --keep-warehouse")
     else:
         os.environ.update(env)
@@ -182,7 +171,7 @@ def main() -> int:
     step(f"Publish the fixture to the store as {fixture['snapshot_id']}")
     run(
         [
-            "uv", "run", "python", "-m", "scripts.seed_bronze",
+            "uv", "run", "wwi", "seed",
             "--manifest", str(FIXTURE_MANIFEST),
             "--data-dir", str(FIXTURE_DIR),
         ],
@@ -192,7 +181,7 @@ def main() -> int:
     step("Verify what landed against the fixture's own checksums")
     run(
         [
-            "uv", "run", "python", "-m", "scripts.verify_snapshot",
+            "uv", "run", "wwi", "verify",
             "--manifest", str(FIXTURE_MANIFEST),
         ],
         env=env,
@@ -212,15 +201,15 @@ def main() -> int:
     )
 
     step("Report what was built")
-    run(["uv", "run", "python", "-m", "scripts.warehouse_shape"], env=env)
+    run(["uv", "run", "wwi", "shape"], env=env)
 
     elapsed = time.monotonic() - started
     catalog_port = env.get("CATALOG_PORT", "55432")
-    print(
+    return (
         f"\n\033[1mDone in {elapsed:.0f}s.\033[0m The warehouse is a DuckLake lakehouse: "
         "Parquet on the object store, catalog in Postgres.\n"
         "\nQuery it from anything that speaks DuckDB. The shortest route:\n"
-        "    uv run python -c \"from scripts.warehouse import connect; "
+        "    uv run python -c \"from connectors.ducklake import connect; "
         "print(connect().sql('select count(*) from main_mart.mart_sales_order_line'))\"\n"
         f"\nFor a SQL client, attach the catalog on port {catalog_port} and the bucket over the S3 "
         "API; `make shape` above prints every relation it will see.\n"
@@ -228,8 +217,3 @@ def main() -> int:
         "counts are the fixture's. With the real snapshot in data/raw/, `make extract` "
         "publishes it and `make build` produces the warehouse in full."
     )
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.snapshot_layout import bronze_prefix, bronze_prefix_template, snapshot_id
+from contracts.paths import bronze_prefix, bronze_prefix_template, snapshot_id
 
 
 @pytest.mark.parametrize(

@@ -28,7 +28,7 @@ up:
 	docker compose up -d --wait
 # Creates the bucket and waits on a real round trip. The container healthcheck goes green before
 # the volume server can take a write, so without this whatever runs next races the store.
-	uv run python -m scripts.wait_for_storage
+	uv run wwi wait-storage
 
 down:
 	docker compose down
@@ -41,20 +41,20 @@ clean_storage:
 # Puts the local snapshot on the store, then verifies the objects that landed. A count of
 # uploaded files says nothing about their contents.
 seed_bronze:
-	uv run python -m scripts.seed_bronze
-	uv run python -m scripts.verify_snapshot
+	uv run wwi seed
+	uv run wwi verify
 
 # Zero-row Parquet carrying the manifest's schema. Every model still executes, so a renamed or
 # missing column fails on a binder error -- but anything data-dependent passes on no rows, which is
 # why this is no longer what CI builds on. Kept for a pure schema-break check.
 seed_bronze_empty:
-	uv run python -m scripts.seed_bronze --empty
+	uv run wwi seed --empty
 
 # Publishes the committed fixture and verifies what landed against its own checksums. What CI seeds:
 # real rows, so the referential tests have something to fail on.
 seed_demo:
-	SNAPSHOT_ID=$(DEMO_SNAPSHOT_ID) uv run python -m scripts.seed_bronze --manifest $(DEMO_MANIFEST) --data-dir $(DEMO_DIR)
-	SNAPSHOT_ID=$(DEMO_SNAPSHOT_ID) uv run python -m scripts.verify_snapshot --manifest $(DEMO_MANIFEST)
+	SNAPSHOT_ID=$(DEMO_SNAPSHOT_ID) uv run wwi seed --manifest $(DEMO_MANIFEST) --data-dir $(DEMO_DIR)
+	SNAPSHOT_ID=$(DEMO_SNAPSHOT_ID) uv run wwi verify --manifest $(DEMO_MANIFEST)
 
 # --- checks -----------------------------------------------------------------------------
 # `check` is what CI runs and what to run before pushing. None of it needs Docker.
@@ -63,6 +63,8 @@ check: lint typecheck test sources_check
 
 lint:
 	uv run ruff check .
+# The architectural boundary, checked: nothing outside the source connector may reach the source.
+	uv run lint-imports
 
 # Not part of `check`: the existing formatting is deliberate and reformatting it wholesale would
 # bury real changes. This is here for new code.
@@ -98,40 +100,40 @@ build_demo:
 # data/raw/ is staging, not where the snapshot lives. The published snapshot is on the object
 # store under bronze/<snapshot-id>/; this chain ends by putting it there and verifying it landed.
 extract:
-	uv run python etl/dlt_mssql_to_parquet.py --source-db $(SOURCE_DB)
+	uv run wwi extract --source-db $(SOURCE_DB)
 	$(MAKE) manifest
 	$(MAKE) sources
 	$(MAKE) seed_bronze
 
 manifest:
-	uv run python -m scripts.generate_manifest
+	uv run wwi manifest
 
 # One command from a fresh clone to a queryable star schema, with no source database. Needs git,
 # make, uv and a container runtime -- nothing else, and nothing filled in by hand.
 demo:
-	uv run python -m scripts.demo
+	uv run wwi demo
 
 # The reduced fixture a fresh clone builds on: real rows, real checksums, ~2.4 MB. Derived from the
 # snapshot in data/raw/, so this needs a machine that has run the extraction -- unlike `make demo`,
 # which only needs what is committed. Deterministic: two runs produce identical files.
 demo_fixture:
-	uv run python -m scripts.make_demo_fixture
+	uv run wwi demo-fixture
 
 # sources.yml is a projection of the manifest. Regenerate after every extraction.
 sources:
-	uv run python -m scripts.generate_sources
+	uv run wwi sources
 
 # Fails if sources.yml has drifted from the manifest. For CI and for pre-push.
 sources_check:
-	uv run python -m scripts.generate_sources --check
+	uv run wwi sources --check
 
 verify:
-	uv run python -m scripts.verify_snapshot
+	uv run wwi verify
 
 # Every relation with its row and column count. Exists so no document carries a row count.
 shape:
-	uv run python -m scripts.warehouse_shape
+	uv run wwi shape
 
 # Two builds of one snapshot must be identical. Names the relation and the column when not.
 compare:
-	uv run python -m scripts.compare_builds $(if $(PROFILES_DIR),--profiles-dir $(PROFILES_DIR),)
+	uv run pytest tests/integration/test_build_determinism.py

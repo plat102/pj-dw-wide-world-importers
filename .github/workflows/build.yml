@@ -20,7 +20,7 @@ jobs:
         with:
           enable-cache: true
       - run: make install
-      - name: Lint, types, unit tests, and sources.yml drift
+      - name: Lint, import boundaries, types, unit tests, and sources.yml drift
         run: make check
 
   build:

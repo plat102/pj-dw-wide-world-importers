@@ -9,26 +9,22 @@ Written with pyarrow rather than DuckDB `COPY` so every column keeps the exact A
 extraction produced: verify_snapshot.py compares column types, and sources.yml is generated from
 those types.
 
-    python -m scripts.make_demo_fixture       # or: make demo_fixture
+    wwi demo-fixture       # or: make demo_fixture
 """
 
 from __future__ import annotations
 
-import argparse
-import hashlib
-import json
-import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
-from scripts.snapshot_layout import snapshot_id
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-CHUNK = 1024 * 1024
+from contracts import manifest as manifest_contract
+from contracts.paths import snapshot_id
+from utils.exceptions import ToolingError
 
 # Only the four fact-shaped tables are reduced. The other 17 total under a megabyte and are kept
 # whole on purpose: a fixture whose foreign keys resolve because the dimension was filtered to
@@ -42,14 +38,6 @@ TRANSACTIONS = "warehouse__stock_item_transactions"
 NAMED_IN_ERROR = 3
 
 
-def sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for block in iter(lambda: f.read(CHUNK), b""):
-            h.update(block)
-    return h.hexdigest()
-
-
 def sorted_by_first_column(table: pa.Table) -> pa.Table:
     """Impose a row order so regenerating the fixture reproduces it byte for byte.
 
@@ -60,36 +48,19 @@ def sorted_by_first_column(table: pa.Table) -> pa.Table:
     return table.sort_by([(table.schema.names[0], "ascending")])
 
 
-def main() -> int:
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--input-dir", default="data/raw")
-    p.add_argument("--source-manifest", default="data/snapshots/manifest.json")
-    p.add_argument("--output-dir", default="data/demo")
-    p.add_argument(
-        "--from-date",
-        default="2018-01-01",
-        help="orders on or after this date are kept; the fact tables follow the orders",
-    )
-    args = p.parse_args()
-
-    in_dir = REPO_ROOT / args.input_dir
-    out_dir = REPO_ROOT / args.output_dir
-    src_manifest_path = REPO_ROOT / args.source_manifest
-
-    if not src_manifest_path.exists():
-        sys.exit(f"{src_manifest_path} is missing -- nothing to derive a fixture from")
-    source = json.loads(src_manifest_path.read_text(encoding="utf-8"))
+def cut(in_dir: Path, out_dir: Path, src_manifest_path: Path, from_date: str) -> str:
+    source = manifest_contract.load(src_manifest_path)
 
     missing = [n for n in source["tables"] if not (in_dir / f"{n}.parquet").exists()]
     if missing:
-        sys.exit(
+        raise ToolingError(
             f"{in_dir} is missing {len(missing)} of the snapshot's tables "
             f"({', '.join(missing[:NAMED_IN_ERROR])}"
             f"{'...' if len(missing) > NAMED_IN_ERROR else ''}) -- "
             "run `make extract` on a machine with the source"
         )
 
-    cutoff = pa.scalar(datetime.fromisoformat(args.from_date).date(), type=pa.date32())
+    cutoff = pa.scalar(datetime.fromisoformat(from_date).date(), type=pa.date32())
 
     # Orders first: everything else keys off which orders survive.
     orders = pq.read_table(in_dir / f"{ORDERS}.parquet")
@@ -128,26 +99,19 @@ def main() -> int:
     for stale in out_dir.glob("*.parquet"):
         stale.unlink()
 
-    tables: dict[str, dict] = {}
+    tables: dict[str, dict[str, Any]] = {}
     for name in source["tables"]:
         table = reduced.get(name) or pq.read_table(in_dir / f"{name}.parquet")
         table = sorted_by_first_column(table)
         dest = out_dir / f"{name}.parquet"
         pq.write_table(table, dest, compression="snappy")
 
-        written = pq.ParquetFile(dest)
-        tables[name] = {
-            "file": dest.name,
-            "row_count": written.metadata.num_rows,
-            "size_bytes": dest.stat().st_size,
-            "sha256": sha256(dest),
-            "columns": {f.name: str(f.type) for f in written.schema_arrow},
-        }
+        tables[name] = manifest_contract.describe_file(dest)
 
         expected = source["tables"][name]["columns"]
         if tables[name]["columns"] != expected:
             drifted = [c for c in expected if expected.get(c) != tables[name]["columns"].get(c)]
-            sys.exit(
+            raise ToolingError(
                 f"{name}: the fixture's column types differ from the snapshot's "
                 f"({', '.join(drifted)})"
                 " -- sources.yml is generated from the snapshot's types, so the two must agree"
@@ -162,27 +126,23 @@ def main() -> int:
         "snapshot_id": f"demo-{snapshot_id(source['snapshot_timestamp'])}",
         "kind": "demo_fixture",
         "derived_from": source["snapshot_id"],
-        "orders_from_date": args.from_date,
+        "orders_from_date": from_date,
         "mssql_version": source["mssql_version"],
         "delivery_time_form": source["delivery_time_form"],
-        "table_count": len(tables),
-        "total_size_bytes": sum(t["size_bytes"] for t in tables.values()),
-        "total_row_count": sum(t["row_count"] for t in tables.values()),
+        **manifest_contract.summarise(tables),
         "tables": tables,
     }
 
     out = out_dir / "manifest.json"
-    out.write_text(json.dumps(manifest, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    manifest_contract.dump(manifest, out)
 
     mb = manifest["total_size_bytes"] / 1048576
-    print(f"{out}: {len(tables)} tables, {manifest['total_row_count']:,} rows, {mb:.2f} MB")
+    lines = [f"{out}: {len(tables)} tables, {manifest['total_row_count']:,} rows, {mb:.2f} MB"]
     # Built before the f-string rather than inside it: nesting the same quote three deep parses
     # only on 3.12+, and this file is not the place to raise the floor for the whole project.
     reduced_counts = ", ".join(f"{name} {tables[name]['row_count']:,}" for name in reduced)
-    print(f"  reduced: {reduced_counts}")
-    print(f"  snapshot_id: {manifest['snapshot_id']} (derived from {manifest['derived_from']})")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    lines.append(f"  reduced: {reduced_counts}")
+    lines.append(
+        f"  snapshot_id: {manifest['snapshot_id']} (derived from {manifest['derived_from']})"
+    )
+    return "\n".join(lines)
