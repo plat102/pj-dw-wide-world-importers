@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import Any
 
 import duckdb
 
@@ -30,7 +31,9 @@ def endpoint_url() -> str:
 
 def s3fs_client():
     """An s3fs filesystem for the store. Path style, not virtual-host: no per-bucket DNS here."""
-    import s3fs
+    # Imported here, not at the top: s3fs costs about a second to import, and every caller that
+    # only wants catalog_dsn() or connect() would otherwise pay it.
+    import s3fs  # noqa: PLC0415
 
     return s3fs.S3FileSystem(
         key=require("S3_ACCESS_KEY"),
@@ -39,6 +42,18 @@ def s3fs_client():
         config_kwargs={"s3": {"addressing_style": "path"}},
         skip_instance_cache=True,
     )
+
+
+def scalar(conn: duckdb.DuckDBPyConnection, sql: str) -> Any:
+    """The first column of the first row, for a query that must return one.
+
+    `fetchone()` is typed as possibly None and every caller indexed it anyway. A query that comes
+    back empty is a broken assumption, so it raises here rather than an IndexError over there.
+    """
+    row = conn.execute(sql).fetchone()
+    if row is None:
+        raise RuntimeError(f"expected one row, got none: {sql}")
+    return row[0]
 
 
 def load_s3_secret(conn: duckdb.DuckDBPyConnection) -> None:

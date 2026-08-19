@@ -19,7 +19,7 @@ DEMO_DIR := data/demo
 DEMO_MANIFEST := $(DEMO_DIR)/manifest.json
 DEMO_SNAPSHOT_ID = $(shell uv run python -c "import json;print(json.load(open('$(DEMO_MANIFEST)'))['snapshot_id'])")
 
-.PHONY: up down clean_storage seed_bronze seed_bronze_empty seed_demo install deps parse build build_demo extract demo demo_fixture manifest sources sources_check verify compare shape
+.PHONY: up down clean_storage seed_bronze seed_bronze_empty seed_demo install deps parse build build_demo extract demo demo_fixture manifest sources sources_check verify compare shape lint format typecheck test check
 
 # --- storage layer ----------------------------------------------------------------------
 # Credentials come from .env; an unset one stops the stack rather than guessing a value.
@@ -55,6 +55,25 @@ seed_bronze_empty:
 seed_demo:
 	SNAPSHOT_ID=$(DEMO_SNAPSHOT_ID) uv run python -m scripts.seed_bronze --manifest $(DEMO_MANIFEST) --data-dir $(DEMO_DIR)
 	SNAPSHOT_ID=$(DEMO_SNAPSHOT_ID) uv run python -m scripts.verify_snapshot --manifest $(DEMO_MANIFEST)
+
+# --- checks -----------------------------------------------------------------------------
+# `check` is what CI runs and what to run before pushing. None of it needs Docker.
+
+check: lint typecheck test sources_check
+
+lint:
+	uv run ruff check .
+
+# Not part of `check`: the existing formatting is deliberate and reformatting it wholesale would
+# bury real changes. This is here for new code.
+format:
+	uv run ruff format .
+
+typecheck:
+	uv run mypy
+
+test:
+	uv run pytest
 
 # --- python + dbt -----------------------------------------------------------------------
 

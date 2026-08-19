@@ -138,7 +138,8 @@ def main() -> int:
     print(
         f"OK {manifest['table_count']} tables, {manifest['total_row_count']:,} rows, "
         f"{manifest['total_size_bytes'] / 1048576:.1f} MB\n"
-        f"   snapshot {manifest['snapshot_timestamp']}, schema version {manifest['schema_version']}\n"
+        f"   snapshot {manifest['snapshot_timestamp']}, "
+        f"schema version {manifest['schema_version']}\n"
         f"   source {manifest['mssql_version']}\n"
         f"   delivery time captured as {manifest['delivery_time_form']}"
     )

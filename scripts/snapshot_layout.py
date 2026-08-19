@@ -5,7 +5,7 @@ The id makes a new extraction land beside the previous one rather than overwrite
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def snapshot_id(snapshot_timestamp: str) -> str:
@@ -13,7 +13,7 @@ def snapshot_id(snapshot_timestamp: str) -> str:
     moment = datetime.fromisoformat(snapshot_timestamp)
     # Normalised to UTC so one instant always yields one id; naive is taken to be UTC already.
     if moment.tzinfo is not None:
-        moment = moment.astimezone(timezone.utc).replace(tzinfo=None)
+        moment = moment.astimezone(UTC).replace(tzinfo=None)
     return moment.strftime("%Y%m%dT%H%M%SZ")
 
 

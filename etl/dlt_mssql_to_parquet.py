@@ -12,13 +12,16 @@ import json
 import os
 import shutil
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import dlt
+import pyarrow.parquet as pq
+import sqlalchemy as sa
 import yaml
 from dlt.sources.sql_database import sql_table
+from sqlalchemy.pool import StaticPool
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TABLES_CONFIG = REPO_ROOT / "etl" / "tables.yml"
@@ -46,9 +49,6 @@ def pinned_engine(conn_str: str):
 
     StaticPool shares one session; AUTOCOMMIT makes pymssql ignore SQLAlchemy's rollback on close.
     """
-    import sqlalchemy as sa
-    from sqlalchemy.pool import StaticPool
-
     return sa.create_engine(
         conn_str,
         poolclass=StaticPool,
@@ -98,8 +98,6 @@ def assert_same_transaction(cursor, expected: int) -> None:
 
 def check_declared_columns(engine, tables: list[dict]) -> None:
     """Assert every declared column exists; dlt's included_columns silently drops unknown names."""
-    import sqlalchemy as sa
-
     inspector = sa.inspect(engine)
     problems = []
     for entry in tables:
@@ -113,8 +111,6 @@ def check_declared_columns(engine, tables: list[dict]) -> None:
 
 def count_source_rows(engine, tables: list[dict]) -> dict[str, int]:
     """Source row counts, to catch row-level security filtering part of a table."""
-    import sqlalchemy as sa
-
     counts = {}
     with engine.connect() as conn:
         for entry in tables:
@@ -130,8 +126,6 @@ def assert_out_of_load_mode(conn, source_db: str) -> None:
 
     It switches versioning and the security policy off, so changed rows reach no history table.
     """
-    import sqlalchemy as sa
-
     # Every WWI history table is named `*_Archive`, so the counts agree unless versioning is off.
     versioned, archives = conn.execute(
         sa.text(
@@ -177,8 +171,6 @@ def inspect_source(conn_str: str, source_db: str) -> dict[str, str]:
 
     On a plain connection: the isolation check needs there to be no transaction yet.
     """
-    import sqlalchemy as sa
-
     engine = sa.create_engine(conn_str)
     with engine.connect() as conn:
         row = conn.execute(
@@ -211,8 +203,12 @@ def inspect_source(conn_str: str, source_db: str) -> dict[str, str]:
                 "WHERE object_id = OBJECT_ID('Sales.Invoices') AND name = 'ConfirmedDeliveryTime'"
             )
         ).scalar()
+    if version is None:
+        sys.exit(
+            "SERVERPROPERTY returned no version -- the manifest records it, so it must exist"
+        )
     return {
-        "mssql_version": version,
+        "mssql_version": str(version),
         # Without the computed column, on-time has to be parsed from ReturnedDeliveryData instead.
         "delivery_time_form": "computed_column" if computed else "raw_json",
     }
@@ -240,14 +236,16 @@ def main() -> int:
     check_declared_columns(engine, tables)
     source_counts = count_source_rows(engine, tables)
 
-    load_timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    load_timestamp = datetime.now(UTC).isoformat(timespec="seconds")
     out_dir = Path(args.output_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     clear_previous_run(out_dir)
 
     # Staged locally so the manifest's SHA256 covers exactly the bytes `seed_bronze` uploads.
     staging = out_dir / "_dlt"
-    pipeline = dlt.pipeline(
+    # Ignored below: dlt's pipeline() overloads accept only the string form of `destination`,
+    # but the Destination instance is what carries bucket_url, so the instance is what we pass.
+    pipeline = dlt.pipeline(  # type: ignore[call-overload]
         pipeline_name="wwi_snapshot",
         destination=dlt.destinations.filesystem(bucket_url=staging.as_uri()),
         dataset_name="raw",
@@ -286,7 +284,9 @@ def main() -> int:
 
     drift = {n: (source_counts[n], written[n]) for n in written if source_counts[n] != written[n]}
     if drift:
-        detail = ", ".join(f"{n}: source {a:,} vs parquet {b:,}" for n, (a, b) in sorted(drift.items()))
+        detail = ", ".join(
+            f"{n}: source {a:,} vs parquet {b:,}" for n, (a, b) in sorted(drift.items())
+        )
         sys.exit(f"row counts do not match the source: {detail}")
     (out_dir / "_extraction.json").write_text(
         json.dumps(
@@ -307,8 +307,6 @@ def main() -> int:
 
 def flatten_output(staging: Path, out_dir: Path, tables: list[dict]) -> dict[str, int]:
     """dlt writes <dataset>/<table>/<load_id>.<id>.parquet; the contract wants one flat file."""
-    import pyarrow.parquet as pq
-
     written: dict[str, int] = {}
     missing = [e["output"] for e in tables if not list(staging.rglob(f"{e['output']}/*.parquet"))]
     if missing:

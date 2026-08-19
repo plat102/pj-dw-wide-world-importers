@@ -15,7 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.warehouse import connect
+from scripts.warehouse import connect, scalar
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DBT_DIR = "wide_world_importers_dw"
@@ -25,8 +25,10 @@ def build(profiles_dir: str | None) -> None:
     command = ["dbt", "build", "--project-dir", f"./{DBT_DIR}"]
     if profiles_dir:
         command += ["--profiles-dir", profiles_dir]
+    # check=False: a failed build is reported below with its output redacted, not raised.
     result = subprocess.run(
-        command, cwd=REPO_ROOT, env=os.environ.copy(), capture_output=True, text=True
+        command, cwd=REPO_ROOT, env=os.environ.copy(),
+        capture_output=True, text=True, check=False,
     )
     if result.returncode != 0:
         # Redacted: the attach string carries the catalog password and dbt echoes it on failure.
@@ -39,7 +41,7 @@ def _redact(text: str) -> str:
 
 
 def latest_snapshot(conn) -> int:
-    return conn.execute("select max(snapshot_id) from ducklake_snapshots('lake')").fetchone()[0]
+    return scalar(conn, "select max(snapshot_id) from ducklake_snapshots('lake')")
 
 
 def tables(conn) -> list[tuple[str, str]]:
@@ -79,10 +81,11 @@ def column_report(conn, schema: str, table: str, first: int, second: int) -> str
     for name in names:
         if name == key:
             continue
-        mismatched = conn.execute(
+        mismatched = scalar(
+            conn,
             f'select count(*) from {left} a join {right} b using ("{key}") '
-            f'where a."{name}" is distinct from b."{name}"'
-        ).fetchone()[0]
+            f'where a."{name}" is distinct from b."{name}"',
+        )
         if mismatched:
             culprits.append(f"{name} ({mismatched:,} rows)")
     if not culprits:
@@ -117,13 +120,13 @@ def main() -> int:
     for schema, table in relations:
         left = f'lake."{schema}"."{table}" at (version => {first})'
         right = f'lake."{schema}"."{table}" at (version => {second})'
-        only_first = conn.execute(
-            f"select count(*) from (select * from {left} except select * from {right})"
-        ).fetchone()[0]
-        only_second = conn.execute(
-            f"select count(*) from (select * from {right} except select * from {left})"
-        ).fetchone()[0]
-        rows = conn.execute(f"select count(*) from {right}").fetchone()[0]
+        only_first = scalar(
+            conn, f"select count(*) from (select * from {left} except select * from {right})"
+        )
+        only_second = scalar(
+            conn, f"select count(*) from (select * from {right} except select * from {left})"
+        )
+        rows = scalar(conn, f"select count(*) from {right}")
         status = "OK  " if not (only_first or only_second) else "DIFF"
         print(f"{status} {schema}.{table:<34} {rows:>9,} rows")
         if only_first or only_second:
@@ -138,10 +141,11 @@ def main() -> int:
         print(f"    -> {column_report(conn, schema, table, first, second)}")
 
     if not differing:
-        views = conn.execute(
+        views = scalar(
+            conn,
             "select count(*) from information_schema.tables "
-            "where table_catalog = 'lake' and table_type = 'VIEW'"
-        ).fetchone()[0]
+            "where table_catalog = 'lake' and table_type = 'VIEW'",
+        )
         print(f"({views} views not compared -- a view is re-evaluated on read)")
 
     return 1 if differing else 0

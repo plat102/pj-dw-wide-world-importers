@@ -38,6 +38,9 @@ ORDER_LINES = "sales__order_lines"
 INVOICES = "sales__invoices"
 TRANSACTIONS = "warehouse__stock_item_transactions"
 
+# How many missing tables the error names before trailing off; the rest are counted, not listed.
+NAMED_IN_ERROR = 3
+
 
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
@@ -80,8 +83,10 @@ def main() -> int:
     missing = [n for n in source["tables"] if not (in_dir / f"{n}.parquet").exists()]
     if missing:
         sys.exit(
-            f"{in_dir} is missing {len(missing)} of the snapshot's tables ({', '.join(missing[:3])}"
-            f"{'...' if len(missing) > 3 else ''}) -- run `make extract` on a machine with the source"
+            f"{in_dir} is missing {len(missing)} of the snapshot's tables "
+            f"({', '.join(missing[:NAMED_IN_ERROR])}"
+            f"{'...' if len(missing) > NAMED_IN_ERROR else ''}) -- "
+            "run `make extract` on a machine with the source"
         )
 
     cutoff = pa.scalar(datetime.fromisoformat(args.from_date).date(), type=pa.date32())
@@ -143,13 +148,14 @@ def main() -> int:
         if tables[name]["columns"] != expected:
             drifted = [c for c in expected if expected.get(c) != tables[name]["columns"].get(c)]
             sys.exit(
-                f"{name}: the fixture's column types differ from the snapshot's ({', '.join(drifted)})"
+                f"{name}: the fixture's column types differ from the snapshot's "
+                f"({', '.join(drifted)})"
                 " -- sources.yml is generated from the snapshot's types, so the two must agree"
             )
 
-    # The `demo-` prefix gives the fixture its own bronze prefix, so seeding it can never overwrite a
-    # published snapshot. The timestamp is the source's rather than the wall clock's, so the fixture
-    # derived from one snapshot always carries one id.
+    # The `demo-` prefix gives the fixture its own bronze prefix, so seeding it can never
+    # overwrite a published snapshot. The timestamp is the source's rather than the wall clock's,
+    # so the fixture derived from one snapshot always carries one id.
     manifest = {
         "schema_version": source["schema_version"],
         "snapshot_timestamp": source["snapshot_timestamp"],

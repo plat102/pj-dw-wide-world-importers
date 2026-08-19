@@ -67,7 +67,10 @@ def main() -> int:
         )
     mismatched = [n for n in expected if expected[n] != tables[n]["row_count"]]
     if mismatched:
-        detail = ", ".join(f"{n}: extraction {expected[n]:,} vs file {tables[n]['row_count']:,}" for n in mismatched)
+        detail = ", ".join(
+            f"{n}: extraction {expected[n]:,} vs file {tables[n]['row_count']:,}"
+            for n in mismatched
+        )
         sys.exit(f"row counts changed since the extraction: {detail}")
 
     manifest = {
