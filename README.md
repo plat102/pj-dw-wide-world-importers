@@ -119,25 +119,38 @@ flowchart LR
 
 ## 🚀 Quick Start
 
-**Requirements:** Python 3.11+, [uv](https://docs.astral.sh/uv/), and Docker. No cloud account,
-and no SQL Server unless you want to refresh the snapshot.
+**Requirements:** `git`, `make`, [uv](https://docs.astral.sh/uv/) and a container runtime. That is
+the whole list -- no cloud account, no SQL Server, and nothing to fill in by hand.
 
 ```bash
-# Install the pinned environment and the dbt packages
-make install
-make deps
+make demo
+```
 
-# Point dbt at a profile. Every value comes from .env, so there is nothing to fill in.
-cp .env.example .env      # then set the store and catalog credentials
+One command, and it does not shorten anything away: it installs the pinned environment and the dbt
+packages, writes a `.env` with generated local credentials, brings up the object store and the
+DuckLake catalog, publishes the committed fixture, **verifies every object against its checksum**,
+builds all 26 models, runs all 50 tests, and prints every relation with its row count. Measured on a
+fresh clone with no source database: **36 seconds cold, 31 seconds on a second run.**
+
+It refuses rather than guesses in two places. If `MSSQL_CONNECTION_STRING` is set it stops -- the
+transform half must never be able to reach the source. If the lake already holds a warehouse this
+fixture did not build, it stops and names the row counts that told it so, rather than mixing fixture
+rows into a real warehouse.
+
+<details>
+<summary>The same thing as separate steps</summary>
+
+```bash
+make install                # the pinned environment
+make deps                   # the dbt packages -- dbt_packages/ is git-ignored, so this is not optional
+cp .env.example .env        # then set the store and catalog credentials
 cp profiles.sample.yml ~/.dbt/profiles.yml
-
-# Start the object store and the DuckLake catalog, and create the bucket
-make up
-
-# Put a snapshot in front of the build, then build
-make seed_bronze_empty
+make up                     # object store, DuckLake catalog, bucket
+make seed_bronze_empty      # or `make seed_bronze` with a real snapshot in data/raw/
 make build
 ```
+
+</details>
 
 **The Parquet snapshot is not in this repository and never will be** -- only the manifest that
 describes it is. What a fresh clone does have is `data/demo/`: a reduced, labelled derivative of
