@@ -81,8 +81,10 @@ jobs:
         # not satisfy and which was excluded here until the fixture landed. It was the only
         # assertion the staging layer had.
 
-        # KNOWN FLAKE, not root-caused: a cold parse sometimes fails to infer the dependencies of
-        # the tests in tests/ and schedules them early. A re-run passes.
+        # A cold parse used to sometimes mis-schedule the tests in tests/, and a re-run passed. The
+        # three role-playing models that called get_filtered_columns_in_relation at compile time --
+        # the most plausible cause, since they made parse order depend on dim_person existing --
+        # have since been deleted. Whether it recurs is worth watching rather than declaring fixed.
         run: make build_demo
 
       - name: Report the warehouse shape
