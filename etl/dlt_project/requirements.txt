@@ -1,1 +1,0 @@
-dlt[bigquery,sql-database]>=1.7.0

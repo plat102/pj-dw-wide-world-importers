@@ -1,111 +1,610 @@
+# GENERATED -- do not hand-edit. Regenerate with `make sources` after a new extraction.
+# The manifest is authoritative for column names and types; this file is a projection of it.
 version: 2
 sources:
   - name: wwi_raw
-    schema: wwi_raw
-    description: "The raw data from the Wide World Importers OLTP database"
+    description: >
+      Wide World Importers OLTP, frozen as a Parquet snapshot on the object store. Row counts,
+      sizes and checksums live in data/snapshots/manifest.json, which is authoritative; they are
+      not repeated here.
+    meta:
+      # s3:// in every environment; only the endpoint and credentials differ, and those live in
+      # the dbt profile. Nothing here names the store behind the API.
+      external_location: "read_parquet('s3://{{ env_var('S3_BUCKET', 'wwi') }}/bronze/{{ env_var('SNAPSHOT_ID', '20260818T125822Z') }}/{name}.parquet')"
     tables:
-      - name: sales__Customers
-        description: "The customers of Wide World Importers"
+      - name: application__cities
         columns:
-          - name: CustomerID
-            description: ""
-            data_type: INTEGER
-            nullable: true
-          - name: CustomerName
-            description: ""
-            data_type: STRING
-            nullable: true
-          - name: BillToCustomerID
-            description: ""
-            data_type: INTEGER
-            nullable: true
-          - name: CustomerCategoryID
-            description: ""
-            data_type: INTEGER
-            nullable: true
-          - name: BuyingGroupID
-            description: ""
-            data_type: STRING
-            nullable: true
-          - name: PrimaryContactPersonID
-            description: ""
-            data_type: INTEGER
-            nullable: true
-          - name: AlternateContactPersonID
-            description: ""
-            data_type: STRING
-            nullable: true
-          - name: DeliveryMethodID
-            description: ""
-            data_type: INTEGER
-            nullable: true
-          - name: DeliveryCityID
-            description: ""
-            data_type: INTEGER
-            nullable: true
-          - name: CreditLimit
-            description: ""
-            data_type: STRING
-            nullable: true
-          - name: AccountOpenedDate
-            description: ""
+          - name: city_id
+            data_type: BIGINT
+          - name: city_name
+            data_type: VARCHAR
+          - name: state_province_id
+            data_type: BIGINT
+          - name: latest_recorded_population
+            data_type: BIGINT
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP
+      - name: application__countries
+        columns:
+          - name: country_id
+            data_type: BIGINT
+          - name: country_name
+            data_type: VARCHAR
+          - name: formal_name
+            data_type: VARCHAR
+          - name: iso_alpha3_code
+            data_type: VARCHAR
+          - name: iso_numeric_code
+            data_type: BIGINT
+          - name: country_type
+            data_type: VARCHAR
+          - name: latest_recorded_population
+            data_type: BIGINT
+          - name: continent
+            data_type: VARCHAR
+          - name: region
+            data_type: VARCHAR
+          - name: subregion
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP
+      - name: application__delivery_methods
+        columns:
+          - name: delivery_method_id
+            data_type: BIGINT
+          - name: delivery_method_name
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP
+      - name: application__people
+        columns:
+          - name: person_id
+            data_type: BIGINT
+          - name: full_name
+            data_type: VARCHAR
+          - name: preferred_name
+            data_type: VARCHAR
+          - name: search_name
+            data_type: VARCHAR
+          - name: is_permitted_to_logon
+            data_type: BOOLEAN
+          - name: logon_name
+            data_type: VARCHAR
+          - name: is_external_logon_provider
+            data_type: BOOLEAN
+          - name: is_system_user
+            data_type: BOOLEAN
+          - name: is_employee
+            data_type: BOOLEAN
+          - name: is_salesperson
+            data_type: BOOLEAN
+          - name: user_preferences
+            data_type: VARCHAR
+          - name: phone_number
+            data_type: VARCHAR
+          - name: fax_number
+            data_type: VARCHAR
+          - name: email_address
+            data_type: VARCHAR
+          - name: custom_fields
+            data_type: VARCHAR
+          - name: other_languages
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP
+      - name: application__state_provinces
+        columns:
+          - name: state_province_id
+            data_type: BIGINT
+          - name: state_province_code
+            data_type: VARCHAR
+          - name: state_province_name
+            data_type: VARCHAR
+          - name: country_id
+            data_type: BIGINT
+          - name: sales_territory
+            data_type: VARCHAR
+          - name: latest_recorded_population
+            data_type: BIGINT
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP
+      - name: application__transaction_types
+        columns:
+          - name: transaction_type_id
+            data_type: BIGINT
+          - name: transaction_type_name
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP
+      - name: purchasing__purchase_order_lines
+        columns:
+          - name: purchase_order_line_id
+            data_type: BIGINT
+          - name: purchase_order_id
+            data_type: BIGINT
+          - name: stock_item_id
+            data_type: BIGINT
+          - name: ordered_outers
+            data_type: BIGINT
+          - name: description
+            data_type: VARCHAR
+          - name: received_outers
+            data_type: BIGINT
+          - name: package_type_id
+            data_type: BIGINT
+          - name: expected_unit_price_per_outer
+            data_type: DECIMAL(18,2)
+          - name: last_receipt_date
             data_type: DATE
-            nullable: true
-          - name: StandardDiscountPercentage
-            description: ""
-            data_type: FLOAT
-            nullable: true
-          - name: IsStatementSent
-            description: ""
-            data_type: INTEGER
-            nullable: true
-          - name: IsOnCreditHold
-            description: ""
-            data_type: INTEGER
-            nullable: true
-          - name: PaymentDays
-            description: ""
-            data_type: INTEGER
-            nullable: true
-          - name: PhoneNumber
-            description: ""
-            data_type: STRING
-            nullable: true
-          - name: WebsiteURL
-            description: ""
-            data_type: STRING
-            nullable: true
-          - name: DeliveryAddressLine
-            description: ""
-            data_type: STRING
-            nullable: true
-          - name: DeliveryLocationLat
-            description: ""
-            data_type: INTEGER
-            nullable: true
-          - name: DeliveryLocationLong
-            description: ""
-            data_type: INTEGER
-            nullable: true
-
-      - name: sales__CustomerCategories
-        description: "The categories of customers"
+          - name: is_order_line_finalized
+            data_type: BOOLEAN
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: last_edited_when
+            data_type: TIMESTAMP
+      - name: purchasing__purchase_orders
         columns:
-          - name: CustomerCategoryID
-
-      - name: sales__BuyingGroups
-        description: "The buying groups"
+          - name: purchase_order_id
+            data_type: BIGINT
+          - name: supplier_id
+            data_type: BIGINT
+          - name: order_date
+            data_type: DATE
+          - name: delivery_method_id
+            data_type: BIGINT
+          - name: contact_person_id
+            data_type: BIGINT
+          - name: expected_delivery_date
+            data_type: DATE
+          - name: supplier_reference
+            data_type: VARCHAR
+          - name: is_order_finalized
+            data_type: BOOLEAN
+          - name: comments
+            data_type: VARCHAR
+          - name: internal_comments
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: last_edited_when
+            data_type: TIMESTAMP
+      - name: purchasing__supplier_categories
         columns:
-          - name: BuyingGroupID
-      - name: application__People
-      - name: application__DeliveryMethods
-      - name: application__Cities
-      - name: application__StateProvinces
-      - name: application__Countries
-      - name: warehouse__StockItems
-      - name: purchasing__Suppliers
-      - name: purchasing__SupplierCategories
-      - name: warehouse__Colors
-      - name: warehouse__PackageTypes
-      - name: sales__Orders
-      - name: sales__OrderLines
+          - name: supplier_category_id
+            data_type: BIGINT
+          - name: supplier_category_name
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP
+      - name: purchasing__suppliers
+        columns:
+          - name: supplier_id
+            data_type: BIGINT
+          - name: supplier_name
+            data_type: VARCHAR
+          - name: supplier_category_id
+            data_type: BIGINT
+          - name: primary_contact_person_id
+            data_type: BIGINT
+          - name: alternate_contact_person_id
+            data_type: BIGINT
+          - name: delivery_method_id
+            data_type: BIGINT
+          - name: delivery_city_id
+            data_type: BIGINT
+          - name: postal_city_id
+            data_type: BIGINT
+          - name: supplier_reference
+            data_type: VARCHAR
+          - name: bank_account_name
+            data_type: VARCHAR
+          - name: bank_account_branch
+            data_type: VARCHAR
+          - name: bank_account_code
+            data_type: VARCHAR
+          - name: bank_account_number
+            data_type: VARCHAR
+          - name: bank_international_code
+            data_type: VARCHAR
+          - name: payment_days
+            data_type: BIGINT
+          - name: internal_comments
+            data_type: VARCHAR
+          - name: phone_number
+            data_type: VARCHAR
+          - name: fax_number
+            data_type: VARCHAR
+          - name: website_url
+            data_type: VARCHAR
+          - name: delivery_address_line1
+            data_type: VARCHAR
+          - name: delivery_address_line2
+            data_type: VARCHAR
+          - name: delivery_postal_code
+            data_type: VARCHAR
+          - name: postal_address_line1
+            data_type: VARCHAR
+          - name: postal_address_line2
+            data_type: VARCHAR
+          - name: postal_postal_code
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP
+      - name: sales__buying_groups
+        columns:
+          - name: buying_group_id
+            data_type: BIGINT
+          - name: buying_group_name
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP
+      - name: sales__customer_categories
+        columns:
+          - name: customer_category_id
+            data_type: BIGINT
+          - name: customer_category_name
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP
+      - name: sales__customers
+        columns:
+          - name: customer_id
+            data_type: BIGINT
+          - name: customer_name
+            data_type: VARCHAR
+          - name: bill_to_customer_id
+            data_type: BIGINT
+          - name: customer_category_id
+            data_type: BIGINT
+          - name: buying_group_id
+            data_type: BIGINT
+          - name: primary_contact_person_id
+            data_type: BIGINT
+          - name: alternate_contact_person_id
+            data_type: BIGINT
+          - name: delivery_method_id
+            data_type: BIGINT
+          - name: delivery_city_id
+            data_type: BIGINT
+          - name: postal_city_id
+            data_type: BIGINT
+          - name: credit_limit
+            data_type: DECIMAL(18,2)
+          - name: account_opened_date
+            data_type: DATE
+          - name: standard_discount_percentage
+            data_type: DECIMAL(18,3)
+          - name: is_statement_sent
+            data_type: BOOLEAN
+          - name: is_on_credit_hold
+            data_type: BOOLEAN
+          - name: payment_days
+            data_type: BIGINT
+          - name: phone_number
+            data_type: VARCHAR
+          - name: fax_number
+            data_type: VARCHAR
+          - name: delivery_run
+            data_type: VARCHAR
+          - name: run_position
+            data_type: VARCHAR
+          - name: website_url
+            data_type: VARCHAR
+          - name: delivery_address_line1
+            data_type: VARCHAR
+          - name: delivery_address_line2
+            data_type: VARCHAR
+          - name: delivery_postal_code
+            data_type: VARCHAR
+          - name: postal_address_line1
+            data_type: VARCHAR
+          - name: postal_address_line2
+            data_type: VARCHAR
+          - name: postal_postal_code
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP
+      - name: sales__invoices
+        columns:
+          - name: invoice_id
+            data_type: BIGINT
+          - name: customer_id
+            data_type: BIGINT
+          - name: bill_to_customer_id
+            data_type: BIGINT
+          - name: order_id
+            data_type: BIGINT
+          - name: delivery_method_id
+            data_type: BIGINT
+          - name: contact_person_id
+            data_type: BIGINT
+          - name: accounts_person_id
+            data_type: BIGINT
+          - name: salesperson_person_id
+            data_type: BIGINT
+          - name: packed_by_person_id
+            data_type: BIGINT
+          - name: invoice_date
+            data_type: DATE
+          - name: customer_purchase_order_number
+            data_type: VARCHAR
+          - name: is_credit_note
+            data_type: BOOLEAN
+          - name: credit_note_reason
+            data_type: VARCHAR
+          - name: comments
+            data_type: VARCHAR
+          - name: delivery_instructions
+            data_type: VARCHAR
+          - name: internal_comments
+            data_type: VARCHAR
+          - name: total_dry_items
+            data_type: BIGINT
+          - name: total_chiller_items
+            data_type: BIGINT
+          - name: delivery_run
+            data_type: VARCHAR
+          - name: run_position
+            data_type: VARCHAR
+          - name: returned_delivery_data
+            data_type: VARCHAR
+          - name: confirmed_delivery_time
+            data_type: TIMESTAMP
+          - name: confirmed_received_by
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: last_edited_when
+            data_type: TIMESTAMP
+      - name: sales__order_lines
+        columns:
+          - name: order_line_id
+            data_type: BIGINT
+          - name: order_id
+            data_type: BIGINT
+          - name: stock_item_id
+            data_type: BIGINT
+          - name: description
+            data_type: VARCHAR
+          - name: package_type_id
+            data_type: BIGINT
+          - name: quantity
+            data_type: BIGINT
+          - name: unit_price
+            data_type: DECIMAL(18,2)
+          - name: tax_rate
+            data_type: DECIMAL(18,3)
+          - name: picked_quantity
+            data_type: BIGINT
+          - name: picking_completed_when
+            data_type: TIMESTAMP
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: last_edited_when
+            data_type: TIMESTAMP
+      - name: sales__orders
+        columns:
+          - name: order_id
+            data_type: BIGINT
+          - name: customer_id
+            data_type: BIGINT
+          - name: salesperson_person_id
+            data_type: BIGINT
+          - name: picked_by_person_id
+            data_type: BIGINT
+          - name: contact_person_id
+            data_type: BIGINT
+          - name: backorder_order_id
+            data_type: BIGINT
+          - name: order_date
+            data_type: DATE
+          - name: expected_delivery_date
+            data_type: DATE
+          - name: customer_purchase_order_number
+            data_type: VARCHAR
+          - name: is_undersupply_backordered
+            data_type: BOOLEAN
+          - name: comments
+            data_type: VARCHAR
+          - name: delivery_instructions
+            data_type: VARCHAR
+          - name: internal_comments
+            data_type: VARCHAR
+          - name: picking_completed_when
+            data_type: TIMESTAMP
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: last_edited_when
+            data_type: TIMESTAMP
+      - name: warehouse__colors
+        columns:
+          - name: color_id
+            data_type: BIGINT
+          - name: color_name
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP
+      - name: warehouse__package_types
+        columns:
+          - name: package_type_id
+            data_type: BIGINT
+          - name: package_type_name
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP
+      - name: warehouse__stock_item_transactions
+        columns:
+          - name: stock_item_transaction_id
+            data_type: BIGINT
+          - name: stock_item_id
+            data_type: BIGINT
+          - name: transaction_type_id
+            data_type: BIGINT
+          - name: customer_id
+            data_type: BIGINT
+          - name: invoice_id
+            data_type: BIGINT
+          - name: supplier_id
+            data_type: BIGINT
+          - name: purchase_order_id
+            data_type: BIGINT
+          - name: transaction_occurred_when
+            data_type: TIMESTAMP
+          - name: quantity
+            data_type: DECIMAL(18,3)
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: last_edited_when
+            data_type: TIMESTAMP
+      - name: warehouse__stock_items
+        columns:
+          - name: stock_item_id
+            data_type: BIGINT
+          - name: stock_item_name
+            data_type: VARCHAR
+          - name: supplier_id
+            data_type: BIGINT
+          - name: color_id
+            data_type: BIGINT
+          - name: unit_package_id
+            data_type: BIGINT
+          - name: outer_package_id
+            data_type: BIGINT
+          - name: brand
+            data_type: VARCHAR
+          - name: size
+            data_type: VARCHAR
+          - name: lead_time_days
+            data_type: BIGINT
+          - name: quantity_per_outer
+            data_type: BIGINT
+          - name: is_chiller_stock
+            data_type: BOOLEAN
+          - name: barcode
+            data_type: VARCHAR
+          - name: tax_rate
+            data_type: DECIMAL(18,3)
+          - name: unit_price
+            data_type: DECIMAL(18,2)
+          - name: recommended_retail_price
+            data_type: DECIMAL(18,2)
+          - name: typical_weight_per_unit
+            data_type: DECIMAL(18,3)
+          - name: marketing_comments
+            data_type: VARCHAR
+          - name: internal_comments
+            data_type: VARCHAR
+          - name: custom_fields
+            data_type: VARCHAR
+          - name: tags
+            data_type: VARCHAR
+          - name: search_details
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP
+      - name: warehouse__stock_items_archive
+        columns:
+          - name: stock_item_id
+            data_type: BIGINT
+          - name: stock_item_name
+            data_type: VARCHAR
+          - name: supplier_id
+            data_type: BIGINT
+          - name: color_id
+            data_type: BIGINT
+          - name: unit_package_id
+            data_type: BIGINT
+          - name: outer_package_id
+            data_type: BIGINT
+          - name: brand
+            data_type: VARCHAR
+          - name: size
+            data_type: VARCHAR
+          - name: lead_time_days
+            data_type: BIGINT
+          - name: quantity_per_outer
+            data_type: BIGINT
+          - name: is_chiller_stock
+            data_type: BOOLEAN
+          - name: barcode
+            data_type: VARCHAR
+          - name: tax_rate
+            data_type: DECIMAL(18,3)
+          - name: unit_price
+            data_type: DECIMAL(18,2)
+          - name: recommended_retail_price
+            data_type: DECIMAL(18,2)
+          - name: typical_weight_per_unit
+            data_type: DECIMAL(18,3)
+          - name: marketing_comments
+            data_type: VARCHAR
+          - name: internal_comments
+            data_type: VARCHAR
+          - name: custom_fields
+            data_type: VARCHAR
+          - name: tags
+            data_type: VARCHAR
+          - name: search_details
+            data_type: VARCHAR
+          - name: last_edited_by
+            data_type: BIGINT
+          - name: valid_from
+            data_type: TIMESTAMP
+          - name: valid_to
+            data_type: TIMESTAMP

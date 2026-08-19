@@ -1,0 +1,9 @@
+version: 2
+
+models:
+  - name: int_city_flattened
+    description: "City with its state province and country on one row. dim_customer needs it twice."
+    columns:
+      - name: city_key
+        description: "Natural key from Application.Cities. Unique, or dim_customer would fan out."
+        data_tests: [unique, not_null]

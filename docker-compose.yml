@@ -1,0 +1,62 @@
+# The storage layer: an S3-compatible object store and the DuckLake catalog.
+# The only file that names either product; everything above it sees s3:// and env vars.
+#
+#   make up / make down / make clean_storage
+
+services:
+  s3:
+    image: chrislusf/seaweedfs:4.41
+    # One process runs master, volume, filer and the S3 gateway. The identity file is rendered
+    # here from the environment so no key is ever committed; without one the gateway answers 403.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        sed -e "s|__ACCESS_KEY__|$${S3_ACCESS_KEY}|" \
+            -e "s|__SECRET_KEY__|$${S3_SECRET_KEY}|" \
+            /etc/seaweedfs/s3-identities.template.json > /tmp/s3-identities.json
+        exec weed server -dir=/data -s3 -s3.port=8333 \
+          -s3.config=/tmp/s3-identities.json \
+          -master.volumeSizeLimitMB=1024 -volume.max=10
+    environment:
+      # No defaults: an unset credential must stop the stack, not start one with a guessable value.
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY -- copy .env.example to .env}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY -- copy .env.example to .env}
+    ports:
+      # The S3 API is the only port anything outside the container speaks to. The master and filer
+      # ports stay internal; the healthcheck below reaches the master from inside.
+      - "${S3_PORT:-8333}:8333"
+    volumes:
+      - s3-data:/data
+      - ./infrastructure/seaweedfs/s3-identities.template.json:/etc/seaweedfs/s3-identities.template.json:ro
+    healthcheck:
+      # 127.0.0.1, not localhost: weed binds IPv4 only and busybox wget tries ::1 first.
+      # Coarse on purpose -- `make up` waits on a real write; see `wwi wait-storage`.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9333/cluster/status"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  # DuckLake catalog. Postgres rather than a file, because a catalog nobody else can reach does
+  # not make a lakehouse; in cloud this is a managed database.
+  catalog:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${CATALOG_USER:?set CATALOG_USER -- copy .env.example to .env}
+      POSTGRES_PASSWORD: ${CATALOG_PASSWORD:?set CATALOG_PASSWORD -- copy .env.example to .env}
+      POSTGRES_DB: ${CATALOG_DB:-ducklake}
+    ports:
+      - "${CATALOG_PORT:-55432}:5432"
+    volumes:
+      - catalog-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+# Named, so `down` keeps the data. Deleting it takes `make clean_storage`.
+volumes:
+  s3-data:
+  catalog-data:

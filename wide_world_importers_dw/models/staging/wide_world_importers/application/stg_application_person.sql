@@ -1,25 +1,25 @@
 with raw as (
     select *
-    from {{ source('wwi_raw', 'application__People') }}
+    from {{ source('wwi_raw', 'application__people') }}
 )
 
 , raw__select_column as (
     select 
-        PersonID AS person_key
-        , FullName AS person_full_name
-        , PreferredName AS person_preferred_name
-        , IsSystemUser AS is_system_user
-        , IsEmployee AS is_employee
-        , IsSalesperson AS is_salesperson
-        , PhoneNumber AS phone_number
-        , EmailAddress AS email_address
+        person_id AS person_key
+        , full_name AS person_full_name
+        , preferred_name AS person_preferred_name
+        , is_system_user AS is_system_user
+        , is_employee AS is_employee
+        , is_salesperson AS is_salesperson
+        , phone_number AS phone_number
+        , email_address AS email_address
     from raw
 )
 
 , raw__add_cursor_timestamp as (
     select 
         *
-        , current_timestamp() as processed_at
+        , {{ snapshot_processed_at() }} as processed_at
     from raw__select_column
     -- cursor timestamp should be loaded time of the data into data lake
     -- this is just a workaround

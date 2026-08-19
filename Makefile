@@ -1,13 +1,141 @@
-run_etl:
-	python etl/dbt_mssql_to_bigquery.py
+# Recipes must be indented with a TAB. Spaces make GNU make fail to parse the file.
+# `uv run` resolves the environment from uv.lock; no venv activation needed.
 
-run_dbt:
-    dbt run --project-dir ./wide_world_importers_dw --profiles-dir ./wide_world_importers_dw
+# make does not read .env by itself; `-include` so a missing one is not fatal. Keep values free
+# of `#` -- make truncates the rest of the line.
+-include .env
+export
+DBT_DIR := wide_world_importers_dw
+PROFILES_ARG := $(if $(PROFILES_DIR),--profiles-dir $(PROFILES_DIR),)
+DBT := uv run dbt
+# One definition of the build command; `build` and `build_demo` differ only in what they add to it.
+DBT_BUILD = $(DBT) build --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
+# Read from the live source in one snapshot-isolation transaction: read-only SELECT is enough.
+SOURCE_DB := WideWorldImporters
 
-dlt_pl_list:
-	dlt pipeline --list-pipelines
+# The committed fixture. Its id is read from its own manifest, never typed, so the two cannot
+# disagree -- and `=` rather than `:=` so nothing shells out until a demo target actually runs.
+DEMO_DIR := data/demo
+DEMO_MANIFEST := $(DEMO_DIR)/manifest.json
+DEMO_SNAPSHOT_ID = $(shell uv run python -c "import json;print(json.load(open('$(DEMO_MANIFEST)'))['snapshot_id'])")
 
-run_dlt:
-	dlt pipeline mssql_to_bigquery sync
+.PHONY: up down clean_storage seed_bronze seed_bronze_empty seed_demo install deps parse build build_demo extract demo demo_fixture manifest sources sources_check verify compare shape lint format typecheck test check
 
-full_pipeline: run_etl run_dbt
+# --- storage layer ----------------------------------------------------------------------
+# Credentials come from .env; an unset one stops the stack rather than guessing a value.
+
+up:
+	docker compose up -d --wait
+# Creates the bucket and waits on a real round trip. The container healthcheck goes green before
+# the volume server can take a write, so without this whatever runs next races the store.
+	uv run wwi wait-storage
+
+down:
+	docker compose down
+
+# Deletes the bronze layer and the catalog. Separate from `down` because `down -v` by reflex is
+# how a snapshot gets thrown away.
+clean_storage:
+	docker compose down -v
+
+# Puts the local snapshot on the store, then verifies the objects that landed. A count of
+# uploaded files says nothing about their contents.
+seed_bronze:
+	uv run wwi seed
+	uv run wwi verify
+
+# Zero-row Parquet carrying the manifest's schema. Every model still executes, so a renamed or
+# missing column fails on a binder error -- but anything data-dependent passes on no rows, which is
+# why this is no longer what CI builds on. Kept for a pure schema-break check.
+seed_bronze_empty:
+	uv run wwi seed --empty
+
+# Publishes the committed fixture and verifies what landed against its own checksums. What CI seeds:
+# real rows, so the referential tests have something to fail on.
+seed_demo:
+	SNAPSHOT_ID=$(DEMO_SNAPSHOT_ID) uv run wwi seed --manifest $(DEMO_MANIFEST) --data-dir $(DEMO_DIR)
+	SNAPSHOT_ID=$(DEMO_SNAPSHOT_ID) uv run wwi verify --manifest $(DEMO_MANIFEST)
+
+# --- checks -----------------------------------------------------------------------------
+# `check` is what CI runs and what to run before pushing. None of it needs Docker.
+
+check: lint typecheck test sources_check
+
+lint:
+	uv run ruff check .
+# The architectural boundary, checked: nothing outside the source connector may reach the source.
+	uv run lint-imports
+
+# Not part of `check`: the existing formatting is deliberate and reformatting it wholesale would
+# bury real changes. This is here for new code.
+format:
+	uv run ruff format .
+
+typecheck:
+	uv run mypy
+
+test:
+	uv run pytest
+
+# --- python + dbt -----------------------------------------------------------------------
+
+install:
+	uv sync --frozen
+
+deps:
+	$(DBT) deps --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
+
+parse:
+	$(DBT) parse --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
+
+build:
+	$(DBT_BUILD)
+
+# Build over the fixture rather than the shipped snapshot. manifest_path is absolute because DuckDB
+# resolves a relative path against the working directory, and the macro that reads it runs wherever
+# dbt happens to be invoked from.
+build_demo:
+	SNAPSHOT_ID=$(DEMO_SNAPSHOT_ID) $(DBT_BUILD) --vars '{"manifest_path": "$(CURDIR)/$(DEMO_MANIFEST)"}'
+
+# data/raw/ is staging, not where the snapshot lives. The published snapshot is on the object
+# store under bronze/<snapshot-id>/; this chain ends by putting it there and verifying it landed.
+extract:
+	uv run wwi extract --source-db $(SOURCE_DB)
+	$(MAKE) manifest
+	$(MAKE) sources
+	$(MAKE) seed_bronze
+
+manifest:
+	uv run wwi manifest
+
+# One command from a fresh clone to a queryable star schema, with no source database. Needs git,
+# make, uv and a container runtime -- nothing else, and nothing filled in by hand.
+demo:
+	uv run wwi demo
+
+# The reduced fixture a fresh clone builds on: real rows, real checksums, ~2.4 MB. Derived from the
+# snapshot in data/raw/, so this needs a machine that has run the extraction -- unlike `make demo`,
+# which only needs what is committed. Deterministic: two runs produce identical files.
+demo_fixture:
+	uv run wwi demo-fixture
+
+# sources.yml is a projection of the manifest. Regenerate after every extraction.
+sources:
+	uv run wwi sources
+
+# Fails if sources.yml has drifted from the manifest. For CI and for pre-push.
+sources_check:
+	uv run wwi sources --check
+
+verify:
+	uv run wwi verify
+
+# Every relation with its row and column count. Exists so no document carries a row count.
+shape:
+	uv run wwi shape
+
+# Two builds of one snapshot must be identical. Names the relation and the column when not.
+# The same test `make test` runs, on its own: it takes two full builds, so it is worth being able
+# to run it alone. Kept under the old name because three documents used to point at it.
+compare:
+	uv run pytest tests/integration/test_build_determinism.py

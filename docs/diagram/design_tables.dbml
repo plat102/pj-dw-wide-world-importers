@@ -1,45 +1,109 @@
-// Use DBML to define your database structure
-// Docs: https://dbml.dbdiagram.io/docs
+// Star schema as built. Render at https://dbdiagram.io.
+// Types are DuckDB types read out of the built warehouse -- see docs/data_warehouse_catalog.md.
+// Row counts are deliberately absent; they change with the data span. Run `make shape`.
+// The date keys are varchar, not date and not integer: they are yyyymmdd text.
 
 Table fact_sales_order_line {
-  sales_order_line_key integer [primary key]
-  customer_key integer
-  stock_item_key integer
-  contact_person_key integer
-  picked_by_person_key integer
-  salesperson_person_key integer
-  package_type_key integer
-  order_date_key date
-  expected_delivery_date_key date
-  picking_completed_date_key date
-}
+  sales_order_line_key bigint [pk, note: 'the grain']
+  sales_order_key bigint [note: 'degenerate dimension']
+  backorder_order_key bigint [null, note: 'degenerate dimension']
+  customer_key bigint
+  bill_to_customer_key bigint
+  stock_item_key bigint
+  package_type_key bigint
+  salesperson_key bigint
+  picked_by_person_key bigint [null]
+  contact_person_key bigint
+  order_date_key varchar
+  expected_delivery_date_key varchar [null]
+  sales_order_picking_completed_date_key varchar [null]
+  sales_order_line_picking_completed_date_key varchar [null]
+  quantity bigint
+  picked_quantity bigint
+  unit_price "decimal(18,2)"
+  tax_rate "decimal(18,3)"
+  is_undersupply_backordered boolean
+  sales_order_line_processed_at timestamptz [note: 'snapshot timestamp from the manifest, not a clock']
 
-Table dim_stock_item {
-  stock_item_key integer [primary key]
+  note: '20 columns, 10 of them foreign keys. Row counts: run `make shape`.'
 }
 
 Table dim_customer {
-  customer_key integer [primary key]
+  customer_key bigint [pk]
+  bill_to_customer_key bigint [note: 'self-relationship']
+  customer_name varchar
+  customer_category_name varchar
+  buying_group_name varchar
+  credit_limit "decimal(18,2)" [null]
+  is_on_credit_hold boolean
+  delivery_city_name varchar
+  delivery_country_name varchar
+
+  note: '33 columns, of which the nine shown here. Type 0.'
+}
+
+Table dim_stock_item {
+  stock_item_sk varchar [pk, note: 'surrogate key, md5 over the natural key']
+  stock_item_key bigint [unique, note: 'natural key -- what the fact joins on']
+  stock_item_name varchar
+  supplier_name varchar
+  color_name varchar [null]
+  unit_price "decimal(18,2)" [note: 'no price history exists in this source']
+
+  note: '18 columns. Type 0, with a surrogate key in place for a later Type 2 build.'
 }
 
 Table dim_person {
-  person_key integer [pk]
+  person_key bigint [pk]
+  person_full_name varchar
+  is_employee boolean
+  is_salesperson boolean
+  is_system_user boolean
+
+  note: '8 columns. Three roles point at it: salesperson, picker, contact.'
 }
 
 Table dim_package_type {
-  package_type_key integer [pk]
+  package_type_key bigint [pk]
+  package_type_name varchar
+
+  note: '2 columns.'
 }
 
 Table dim_date {
-  date_key integer [pk]
+  date_key varchar [pk, note: 'yyyymmdd as text']
+  full_date date [unique]
+  year bigint
+  year_week bigint [note: 'ISO year x 100 + ISO week']
+  fiscal_year bigint [note: 'April start']
+  fiscal_qtr varchar [note: 'aligned to the April start: Q1 is Apr-Jun']
+  week_day bigint [note: '1 = Sunday .. 7 = Saturday']
+  day_is_weekday integer [note: '0 or 1, not a boolean']
+
+  note: '12 columns. 2000-01-01 to 2050-12-31, generated.'
 }
 
-Ref: fact_sales_order_line.customer_key < dim_customer.customer_key
-Ref: fact_sales_order_line.contact_person_key < dim_person.person_key
-Ref: fact_sales_order_line.picked_by_person_key < dim_person.person_key
-Ref: fact_sales_order_line.salesperson_person_key < dim_person.person_key
-Ref: fact_sales_order_line.stock_item_key < dim_stock_item.stock_item_key
-Ref: fact_sales_order_line.package_type_key < dim_package_type.package_type_key
-Ref: fact_sales_order_line.order_date_key < dim_date.date_key
-Ref: fact_sales_order_line.expected_delivery_date_key < dim_date.date_key
-Ref: fact_sales_order_line.picking_completed_date_key < dim_date.date_key
+Table mart_sales_order_line {
+  sales_order_line_key bigint [pk]
+
+  note: '70 columns. Same grain as the fact, every dimension flattened on, no foreign key. The column list is a contract -- see models/marts/sales/schema.yml.'
+}
+
+// Many fact rows to one dimension row. All nine of these pointed the other way before.
+Ref: fact_sales_order_line.customer_key > dim_customer.customer_key
+Ref: fact_sales_order_line.bill_to_customer_key > dim_customer.customer_key
+Ref: fact_sales_order_line.stock_item_key > dim_stock_item.stock_item_key
+Ref: fact_sales_order_line.package_type_key > dim_package_type.package_type_key
+Ref: fact_sales_order_line.salesperson_key > dim_person.person_key
+Ref: fact_sales_order_line.picked_by_person_key > dim_person.person_key
+Ref: fact_sales_order_line.contact_person_key > dim_person.person_key
+Ref: fact_sales_order_line.order_date_key > dim_date.date_key
+Ref: fact_sales_order_line.expected_delivery_date_key > dim_date.date_key
+Ref: fact_sales_order_line.sales_order_picking_completed_date_key > dim_date.date_key
+Ref: fact_sales_order_line.sales_order_line_picking_completed_date_key > dim_date.date_key
+
+// A customer can be invoiced through another customer.
+Ref: dim_customer.bill_to_customer_key > dim_customer.customer_key
+
+// One mart row per fact row.
+Ref: mart_sales_order_line.sales_order_line_key - fact_sales_order_line.sales_order_line_key

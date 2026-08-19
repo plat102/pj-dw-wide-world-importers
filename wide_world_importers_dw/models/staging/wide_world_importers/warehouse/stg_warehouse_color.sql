@@ -1,8 +1,8 @@
 with raw as (
     select *
-    from {{ source('wwi_raw', 'warehouse__Colors') }}
+    from {{ source('wwi_raw', 'warehouse__colors') }}
 )
 select
-    ColorID AS color_key
-    , ColorName AS color_name
+    color_id AS color_key
+    , color_name AS color_name
 from raw

@@ -2,28 +2,28 @@
 
 with raw as (
     select *
-    from {{ source('wwi_raw', 'sales__Orders') }}
+    from {{ source('wwi_raw', 'sales__orders') }}
 )
 
 , raw__select_column as (
     select
-        OrderID AS order_key
-        , CustomerID AS customer_key
-        , SalespersonPersonID AS salesperson_key
-        , PickedByPersonID AS picked_by_person_key
-        , ContactPersonID AS contact_person_key
-        , BackorderOrderID AS backorder_order_key
-        , OrderDate AS order_date_key
-        , ExpectedDeliveryDate AS expected_delivery_date_key
-        , IsUndersupplyBackordered AS is_undersupply_backordered
-        , PickingCompletedWhen AS picking_completed_date_key
+        order_id AS order_key
+        , customer_id AS customer_key
+        , salesperson_person_id AS salesperson_key
+        , picked_by_person_id AS picked_by_person_key
+        , contact_person_id AS contact_person_key
+        , backorder_order_id AS backorder_order_key
+        , order_date AS order_date_key
+        , expected_delivery_date AS expected_delivery_date_key
+        , is_undersupply_backordered AS is_undersupply_backordered
+        , picking_completed_when AS picking_completed_date_key
     from raw
 )
 
 , raw__add_cursor_timestamp as (
     select 
         *
-        , current_timestamp() as processed_at
+        , {{ snapshot_processed_at() }} as processed_at
     from raw__select_column
     -- cursor timestamp should be loaded time of the data into data lake
     -- this is just a workaround

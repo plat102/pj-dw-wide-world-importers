@@ -1,5 +1,4 @@
-with dim_package_type_stg as (
-    select *
-    from {{ref('stg_dim_package_type_wwi')}}
-)
-select * from dim_package_type_stg
+select
+    package_type_key
+    , package_type_name
+from {{ ref('stg_warehouse_package_type') }}
