@@ -5,18 +5,18 @@ Fills only the credentials that guard containers this repository starts and thro
 connection string is left empty on purpose: the transform half must never reach the source, and a
 demo that quietly acquired the means to would be the wrong thing to make convenient.
 
-    python -m scripts.bootstrap_env
+    wwi bootstrap
 """
 
 from __future__ import annotations
 
 import secrets
-import sys
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-ENV = REPO_ROOT / ".env"
-EXAMPLE = REPO_ROOT / ".env.example"
+from config import settings
+from utils.exceptions import ToolingError
+
+ENV = settings.REPO_ROOT / ".env"
+EXAMPLE = settings.REPO_ROOT / ".env.example"
 
 # Values generated here; everything else in .env.example already carries a usable default.
 GENERATED = ("S3_ACCESS_KEY", "S3_SECRET_KEY", "CATALOG_PASSWORD")
@@ -24,12 +24,11 @@ GENERATED = ("S3_ACCESS_KEY", "S3_SECRET_KEY", "CATALOG_PASSWORD")
 FIXED = {"CATALOG_USER": "ducklake"}
 
 
-def main() -> int:
+def write_env() -> str:
     if ENV.exists():
-        print(f"{ENV.name} already exists -- leaving it alone")
-        return 0
+        return f"{ENV.name} already exists -- leaving it alone"
     if not EXAMPLE.exists():
-        sys.exit(f"{EXAMPLE.name} is missing -- cannot derive a {ENV.name} from it")
+        raise ToolingError(f"{EXAMPLE.name} is missing -- cannot derive a {ENV.name} from it")
 
     filled = 0
     lines = []
@@ -49,13 +48,7 @@ def main() -> int:
 
     ENV.write_text("".join(lines), encoding="utf-8")
     ENV.chmod(0o600)
-    print(
-        f"wrote {ENV.name} from {EXAMPLE.name}: {filled} credentials generated, "
-        "source left unset"
+    return (
+        f"wrote {ENV.name} from {EXAMPLE.name}: {filled} credentials generated, source left unset\n"
+        "  docker-compose.yml still has no defaults -- an unset credential stops the stack."
     )
-    print("  docker-compose.yml still has no defaults -- an unset credential stops the stack.")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

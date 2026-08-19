@@ -28,10 +28,10 @@ services:
       - "${S3_PORT:-8333}:8333"
     volumes:
       - s3-data:/data
-      - ./storage/s3-identities.template.json:/etc/seaweedfs/s3-identities.template.json:ro
+      - ./infrastructure/seaweedfs/s3-identities.template.json:/etc/seaweedfs/s3-identities.template.json:ro
     healthcheck:
       # 127.0.0.1, not localhost: weed binds IPv4 only and busybox wget tries ::1 first.
-      # Coarse on purpose -- `make up` waits on a real write; see scripts/wait_for_storage.py.
+      # Coarse on purpose -- `make up` waits on a real write; see `wwi wait-storage`.
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9333/cluster/status"]
       interval: 3s
       timeout: 3s

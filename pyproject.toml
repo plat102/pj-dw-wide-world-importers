@@ -29,13 +29,66 @@ build-backend = "setuptools.build_meta"
 # resolved through the current working directory, and every make recipe silently required the repo
 # root. Declaring it makes `import scripts` work from anywhere.
 [tool.setuptools]
-packages = ["scripts"]
+# src/ is a marker directory, not a package: each subdirectory under it is a top-level package.
+package-dir = {"" = "src"}
+packages = [
+    "cli", "config", "connectors", "contracts", "demo", "ingestion", "utils", "warehouse",
+]
+
+[tool.setuptools.package-data]
+ingestion = ["tables.yml"]
+
+[project.scripts]
+wwi = "cli:main"
 
 [dependency-groups]
 dev = [
+    "import-linter>=2.13",
     "mypy>=2.3.1",
     "pytest>=9.1.1",
     "ruff>=0.16.3",
+]
+
+# The project's defining invariant, as a build failure rather than a paragraph: the extraction half
+# holds the source credential and nothing downstream may acquire the means to reach the source.
+# `make lint` runs these. Break one on purpose before trusting it -- add `import dlt` to
+# warehouse/shape.py and watch the first contract go red.
+[tool.importlinter]
+root_packages = ["cli", "config", "connectors", "contracts", "demo", "ingestion", "utils", "warehouse"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Only the mssql connector may reach the source database"
+type = "forbidden"
+# Bans the capability, not the module: this is what catches a *new* connection opened somewhere
+# else, which a module-to-module rule cannot see.
+# `cli` is absent on purpose: it is the dispatcher, so `wwi extract` reaches the source through it
+# by design. It imports each subcommand's dependencies only when that subcommand is chosen, so
+# `wwi shape` still never loads dlt -- see the PLC0415 exemption for that file.
+source_modules = [
+    "config", "contracts", "demo", "utils", "warehouse",
+    "connectors.s3", "connectors.ducklake",
+    "ingestion.upload", "ingestion.verify",
+]
+forbidden_modules = ["dlt", "sqlalchemy", "pymssql"]
+
+[[tool.importlinter.contracts]]
+name = "The transform half cannot import the source connector"
+type = "forbidden"
+source_modules = ["warehouse", "demo", "contracts", "config", "utils"]
+forbidden_modules = ["connectors.mssql"]
+
+[[tool.importlinter.contracts]]
+name = "Layers"
+type = "layers"
+layers = [
+    "cli",
+    "demo",
+    "ingestion | warehouse",
+    "connectors",
+    "contracts",
+    "config",
+    "utils",
 ]
 
 [tool.uv]
@@ -61,11 +114,16 @@ select = [
 [tool.ruff.lint.per-file-ignores]
 # The dbt `external_location` template lives inside a triple-quoted YAML block that this script
 # emits verbatim. Its width is output, not source, and a trailing `# noqa` would land in sources.yml.
-"scripts/generate_sources.py" = ["E501"]
+"src/contracts/dbt_sources.py" = ["E501"]
+# Every subcommand imports what it needs when it is chosen, not when the CLI loads. `wwi shape`
+# must not pay for sqlalchemy and dlt, and keeping the source driver off the default import path
+# is the same boundary the import-linter contracts enforce.
+"src/cli/__init__.py" = ["PLC0415"]
 
 [tool.mypy]
 python_version = "3.12"
-files = ["scripts", "etl"]
+files = ["src", "tests"]
+mypy_path = "src"
 # The code is already almost fully annotated; this checks the annotations rather than demanding
 # new ones. Tighten by removing these two lines once the untyped edges are gone.
 ignore_missing_imports = true
@@ -76,3 +134,6 @@ testpaths = ["tests"]
 # importlib, so test modules mirroring the package tree may share a basename. The default prepend
 # mode requires globally unique basenames and puts the repo root back on sys.path.
 addopts = "--import-mode=importlib -q"
+# Integration tests need the compose stack and a seeded snapshot. They skip themselves when the
+# lake is unreachable, so `make test` stays runnable on a laptop with nothing running.
+markers = ["integration: needs the object store, the catalog and a seeded snapshot"]
