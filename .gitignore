@@ -28,8 +28,13 @@ package-lock.yml
 
 *.env
 */secrets/*
-# Parquet snapshot: published output, never repository content. Only the manifest that
+# The Parquet snapshot is published output, never repository content. Only the manifest that
 # describes it is tracked -- see data/snapshots/manifest.json.
+#
+# data/demo/ is deliberately NOT ignored. It is a different artifact: a reduced, labelled
+# derivative of the snapshot, ~2.4 MB, so a fresh clone has real rows to build and verify against.
+# It carries kind: demo_fixture and derived_from in its own manifest. Regenerate with
+# `make demo_fixture`; never hand-edit it.
 data/raw/
 
 # Nothing in the build produces this any more; the read-only DuckDB client recreates it on

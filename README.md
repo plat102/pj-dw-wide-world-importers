@@ -140,12 +140,23 @@ make build
 ```
 
 **The Parquet snapshot is not in this repository and never will be** -- only the manifest that
-describes it is. So a fresh clone seeds bronze with zero-row Parquet carrying the manifest's exact
-columns and types. Every model still executes, so a renamed or missing column fails on a binder
-error; anything data-dependent passes trivially on no rows. That is also what CI does.
+describes it is. What a fresh clone does have is `data/demo/`: a reduced, labelled derivative of
+that snapshot, ~2.4 MB, carrying every dimension whole and one window of facts. It has its own
+manifest with its own real checksums, so a clone runs the same seed-and-verify path the shipped
+snapshot does and the warehouse it builds returns numbers rather than empty relations.
+
+Two artifacts, one contract. The snapshot is what the extraction produces and what the warehouse is
+built from in earnest; the fixture is what makes the repository runnable by someone who has neither
+SQL Server nor 24 MB of Parquet. Nothing downstream can tell them apart -- no model, test or macro
+names either one, and `SNAPSHOT_ID` is the only thing that selects between them.
 
 With the real snapshot in `data/raw/`, `make seed_bronze` publishes it to the store instead and the
-build produces the warehouse for real: 26 models and 50 tests.
+build produces the warehouse in full: 26 models and 50 tests.
+
+`make seed_bronze_empty` remains for the third case, and it is worth knowing what it is for: it
+writes zero-row Parquet carrying the manifest's exact columns and types, so every model still
+executes and a renamed or missing column fails on a binder error, while anything data-dependent
+passes trivially on no rows. It answers "did a column break", not "is the data right".
 
 The warehouse is a DuckLake lakehouse -- Parquet on the object store, catalog in Postgres -- not a
 file in this directory. `make shape` prints every relation with its row and column count, read
