@@ -135,5 +135,7 @@ shape:
 	uv run wwi shape
 
 # Two builds of one snapshot must be identical. Names the relation and the column when not.
+# The same test `make test` runs, on its own: it takes two full builds, so it is worth being able
+# to run it alone. Kept under the old name because three documents used to point at it.
 compare:
 	uv run pytest tests/integration/test_build_determinism.py
