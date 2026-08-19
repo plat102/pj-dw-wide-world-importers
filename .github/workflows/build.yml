@@ -1,5 +1,6 @@
 # Builds the warehouse on every pull request, on the same compose stack a laptop runs.
-# The real snapshot is never here, so bronze is seeded with zero-row Parquet -- see seed_bronze.py.
+# The real snapshot is never here, so bronze is seeded from the committed fixture in data/demo/:
+# real rows and real checksums, so the referential tests have something to fail on.
 
 name: build
 
@@ -57,24 +58,25 @@ jobs:
       - name: Start the object store and the DuckLake catalog
         run: make up
 
-      - name: Seed bronze with the manifest's schema and no rows
-        run: make seed_bronze_empty
+      - name: Publish the fixture to the store and verify what landed
+        run: make seed_demo
 
       - name: Parse
         # Cheap early signal for Jinja and YAML errors. Not a fix for the flake below.
         run: make parse
 
       - name: Build and test
-        # Only the manifest row-count test is excluded: it cannot hold on an empty seed. Every
-        # other test runs, including the mart's enforced contract.
+        # Every test runs -- including assert_staging_matches_manifest, which an empty seed could
+        # not satisfy and which was excluded here until the fixture landed. It was the only
+        # assertion the staging layer had.
 
         # KNOWN FLAKE, not root-caused: a cold parse sometimes fails to infer the dependencies of
         # the tests in tests/ and schedules them early. A re-run passes.
-        run: uv run dbt build --project-dir ./wide_world_importers_dw --exclude assert_staging_matches_manifest
+        run: make build_demo
 
       - name: Report the warehouse shape
         if: always()
-        run: make shape || true
+        run: make shape
 
       - name: Container logs
         if: failure()
