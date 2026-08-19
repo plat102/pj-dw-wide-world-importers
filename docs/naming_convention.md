@@ -56,14 +56,12 @@ Naming conventions for tables and columns in the warehouse
 | Surrogate Key      | `<table>_sk`             | `stock_item_sk`                                  |
 | General            | snake_case                 | `customer_name`, `unit_price`                  |
 
-**One column breaks these rules and is still in the warehouse.** `dim_date.day_is_weekday` carries
-an `is_` in its name but is a 0/1 `integer`, not a boolean. Renaming or retyping it would change a
-column the mart already publishes under an enforced contract, so it is left in place and recorded
-here rather than quietly tolerated.
+**Known exceptions**, recorded rather than quietly tolerated:
 
-A second one was found and fixed instead: `quantiy_per_outer`, a misspelling introduced by a
-staging alias over a correctly-spelled source column. Nothing downstream used it, so it cost one
-line.
+| Column | Problem | Why it stays |
+|---|---|---|
+| `dim_date.day_is_weekday` | `is_` prefix on a 0/1 `integer`, not a boolean | The mart publishes it under an enforced contract |
+| ~~`quantiy_per_outer`~~ | Misspelled staging alias over a correctly-spelled source column | Fixed — nothing used it
 
 ### Schemas
 
@@ -99,10 +97,8 @@ select
 from dim_customer
 ```
 
-**This used to say trailing commas, and the models never did that.** The convention now matches the
-code rather than the code being wrong. Leading commas also earn their keep here: commenting a column
-out of a wide `select` is a one-character edit and cannot leave a dangling comma behind, which
-matters in a project whose widest model has 70 columns.
+Leading commas earn their keep: commenting a column out of a wide `select` is a one-character edit
+and cannot leave a dangling comma behind, which matters when the widest model has 70 columns.
 
 ### Joins
 
@@ -165,10 +161,9 @@ from high_value_customers
 
 ### Numbers in documentation and comments
 
-**Do not write a row count into a document, a model comment, or a YAML description.** Row counts
-change the moment the data span changes, and extending the source forward is planned work — so every
-copied count becomes wrong on the same day, in places nobody remembers to look. Worse, a count in
-prose is a second source of truth competing with the warehouse itself.
+**Do not write a row count into a document, a model comment, or a YAML description.** It goes stale
+the moment the data span changes, in places nobody remembers to look, and competes with the
+warehouse as a source of truth.
 
 The line to hold:
 
@@ -178,19 +173,17 @@ The line to hold:
 | the **code** changes | column counts, model counts, "ten foreign keys" | Fine to write. A reviewer sees them move in the same diff |
 | never — it is a pinned expectation | the eight dates in `assert_dim_date_calendar` | Required. That is what the test *is* |
 
-So write "no stock item has ever had more than one distinct price", not "444 rows over 227 items
-with zero price changes". The first survives a bigger dataset; the second does not.
+Write "no stock item has ever had more than one distinct price", not "444 rows over 227 items with
+zero price changes". The first survives a bigger dataset.
 
-Where a reader genuinely wants numbers, give them the command:
+Where a reader wants numbers, give the command:
 
 - `make shape` — every relation with its row and column count
 - `make verify` — the snapshot against the manifest's counts and checksums
 - `data/snapshots/manifest.json` — authoritative for source row counts, sizes and types
 
-**This rule is about documentation that describes the present.** A document whose job is to record
-a dated measurement is a different thing and should carry its numbers: it says "on this date we
-measured X", so a stale number there is history rather than a false claim. There are none in this
-repository — everything here describes what the code does now.
+This rule covers documentation describing the *present*. A dated measurement is a different thing
+and should carry its numbers — a stale number there is history, not a false claim.
 
 ### Testing
 

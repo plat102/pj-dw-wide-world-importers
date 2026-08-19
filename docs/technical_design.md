@@ -1,10 +1,10 @@
 # Technical Design
 
-## Architecture Overview
+## Architecture
 
-Two stages that share nothing but an artifact. Stage 1 holds the source credential and produces
-an immutable, checksummed Parquet snapshot. Stage 2 consumes it and never opens a connection to
-SQL Server.
+Two stages sharing nothing but an artifact. Stage 1 holds the source credential and produces an
+immutable, checksummed Parquet snapshot. Stage 2 consumes it and never opens a connection to SQL
+Server. The boundary is enforced by import contracts, not convention — see [Boundaries](#boundaries).
 
 ```mermaid
 graph TB
@@ -48,136 +48,103 @@ graph TB
     DWH --> DOCS
 ```
 
-The earlier architecture — manual CSV upload into BigQuery datasets `wwi_raw` → `wwi_stg` →
-`wwi_dwh` → `wwi_mart`, with Looker Studio on top — is frozen as an exhibit. The Looker Studio
-dashboard still points at it.
+The earlier BigQuery build (`wwi_raw` → `wwi_stg` → `wwi_dwh` → `wwi_mart`, fed by manual CSV
+upload) is frozen as an exhibit. The Looker Studio dashboard still points at it.
 
-### Data Flow & Data Lineage
+## Layers
 
-> *Data Flow answers "how does data move?"; Data Lineage answers "where does this table come from?"*
-
-**Data Flow** = **Physical movement** of data through systems and tools
-
-- **Focus**: Infrastructure, tools, orchestration
-- **Visualized**: Architecture diagram above
-
-**Data Lineage** = **Logical transformation** of specific datasets
-
-- **Focus**: Table dependencies, column mappings, business logic
-- **Examplet**:
-  - `sales.Orders` + `sales.OrderLines` → `stg_sales_order` + `stg_sales_order_line` → `fact_sales_order_line`
-  - `sales.Customers` → `stg_sales_customer` → `dim_customer`
-- **Visualized**: diagram in [Data Modeling](data_modelling.md)
-- **Tool**: dbt docs generates interactive lineage graph (DAG)
-
-### Layer Description
-
-> The role and materialisation of each layer, as built.
-
-| Layer            | Schema      | Purpose                                                    | Materialisation |
-| ---------------- | ----------- | ---------------------------------------------------------- | --------------- |
-| **Raw**          | —           | Parquet under `s3://$S3_BUCKET/bronze/<snapshot-id>/`, read in place | none |
-| **Staging**      | `main_stg`  | One view per source table: renames and casts, no joins      | Views           |
-| **Intermediate** | `main_stg`  | Joins reused by more than one downstream model              | Views           |
-| **Analytics**    | `main_dwh`  | The star schema: dimensions, role-playing views, the fact   | Tables, and views for the three role-playing dimensions |
-| **Marts**        | `main_mart` | One denormalised table for BI, column list under contract   | Tables          |
+| Layer | Schema | Purpose | Materialisation |
+|---|---|---|---|
+| Raw | — | Parquet under `s3://$S3_BUCKET/bronze/<snapshot-id>/`, read in place | none |
+| Staging | `main_stg` | One view per source table: renames and casts, no joins | Views |
+| Intermediate | `main_stg` | Joins reused by more than one downstream model | Views |
+| Analytics | `main_dwh` | The star schema: dimensions and the fact | Tables |
+| Marts | `main_mart` | One denormalised table for BI, columns under contract | Tables |
 
 **Raw is not a layer with tables in it.** `sources.yml` points `source()` straight at the Parquet
-via `read_parquet`, so there is no load step and nothing is copied. That is the one place this
-differs from the frozen BigQuery layout, where `wwi_raw` held real tables.
+via `read_parquet` — no load step, nothing copied. That is the one place this differs from the
+frozen BigQuery layout, where `wwi_raw` held real tables.
 
-The BigQuery datasets `wwi_raw` / `wwi_stg` / `wwi_dwh` / `wwi_mart` are frozen as an exhibit.
+*Data flow* is physical movement (the diagram above). *Data lineage* is logical dependency between
+tables — see [Data Modeling](data_modelling.md), or `dbt docs` for the interactive DAG.
 
-### Technology Stack
+## Stack
 
-> Document the tools and technologies used, with rationale for selection
+| Component | Technology | Purpose |
+|---|---|---|
+| Source | SQL Server 2025 | WWI OLTP, read from a frozen database snapshot |
+| Extraction | dlt 1.30 → Parquet | 21 tables, checksummed into `data/snapshots/manifest.json` |
+| Object store | SeaweedFS (S3 API) | The bronze snapshot and the lake's Parquet |
+| Warehouse | DuckLake on DuckDB | Parquet on the store, catalog in Postgres 16 |
+| Transformation | dbt Core 1.12 + dbt-duckdb 1.11 | SQL-based ELT |
+| Tooling | Python 3.12, `wwi` CLI | Extraction, publication, verification, demo |
+| Visualization | Looker Studio | Frozen against the BigQuery warehouse |
 
-| Component           | Technology                    | Purpose                                                        |
-| ------------------- | ----------------------------- | -------------------------------------------------------------- |
-| **Source System**   | SQL Server 2025               | OLTP database (Wide World Importers), read from a frozen snapshot |
-| **Extraction**      | dlt 1.30 → Parquet            | 21 tables, checksummed into `data/snapshots/manifest.json`      |
-| **Object Store**    | SeaweedFS (S3 API)            | Holds the bronze snapshot and the lake's Parquet                |
-| **Data Warehouse**  | DuckLake on DuckDB            | Parquet on the object store, catalog in Postgres 16             |
-| **Transformation**  | dbt Core 1.12 + dbt-duckdb 1.11 | SQL-based ELT transformations                                 |
-| **Version Control** | Git / GitHub                  | Code versioning and collaboration                              |
-| **Visualization**   | Looker Studio                 | Self-service BI dashboards (frozen against the BigQuery warehouse) |
+The `dev` (BigQuery) profile target is kept as an exhibit. `dbt-bigquery` is **not** installed: it
+pulled 45 packages into the lock file for a target nothing builds against.
 
-The `dev` (BigQuery) profile target is kept as an exhibit of the frozen BigQuery warehouse.
-`dbt-bigquery` itself is **not** installed: it pulled 45 packages into the lock file for a target
-nothing builds against.
+**The object store is a replaceable detail, and that was tested rather than assumed.** The stack was
+brought up against a second S3-compatible implementation (RustFS) with one compose override changing
+only the image — same credentials, bucket, profile and models — and all relations came out with
+identical row counts. The override is not kept: it was evidence, not something that runs.
 
-**The object store is a replaceable detail, and that was tested rather than assumed.** The whole
-stack was brought up against a second S3-compatible implementation (RustFS) with one compose
-override that changed the image and nothing else -- same credentials, same bucket, same dbt
-profile, same models -- and all 23 relations came out with identical row counts. The override file
-is not kept in the repository: it was evidence for a design claim, not something that runs. The
-claim it supports is that nothing above `docker-compose.yml` names the product behind the endpoint.
+**`-volume.max=10` is a real ceiling.** At `volumeSizeLimitMB=1024` that is 10 GiB, and every build
+writes a full copy of each table into the lake. There is no retention command — one was written,
+never needed on a store holding a single snapshot, and deleted. A full store is reset with
+`make clean_storage` and rebuilt.
 
-**`-volume.max=10` in `docker-compose.yml` is a real ceiling**, not a formality: at
-`volumeSizeLimitMB=1024` that is 10 GiB, and every build writes a full copy of each table into the
-lake. A store with no free volumes left refuses writes to a new bucket outright and will eventually
-refuse them to an existing one. There is no retention command: one was written, never needed on a
-store holding a single snapshot, and deleted rather than carried. A store that does fill up is reset
-with `make clean_storage` and rebuilt.
+## Boundaries
 
-## Data Model
+The extraction half holds the source credential; nothing downstream may reach the source. Three
+`import-linter` contracts fail `make lint` when that breaks:
 
-**Current Scope**: Sales analytics (Sales Order business process)
+| Contract | Prevents |
+|---|---|
+| Only `connectors.mssql` may import `dlt` / `sqlalchemy` / `pymssql` | a new source connection anywhere else |
+| `warehouse`, `demo`, `contracts`, `config`, `utils` must not import `connectors.mssql` | the transform half acquiring the means to connect |
+| Layered: `utils`/`config` → `contracts` → `connectors` → `ingestion`/`warehouse` → `demo`/`cli` | the core reaching back up; a new module escaping the layering |
 
-The data warehouse implements a **star schema** with:
+Each was shown to fail before it was trusted.
 
-- **Fact**: `fact_sales_order_line` (grain: one row per order line item)
+## Data model
+
+**Scope**: Sales Order business process.
+
+- **Fact**: `fact_sales_order_line`, grain one row per order line
 - **Dimensions**: `dim_customer`, `dim_stock_item`, `dim_person`, `dim_package_type`, `dim_date`
-- **Role-Playing Dimensions**: Person dimension reused for salesperson, contact person, and picker roles
+- **Person roles**: salesperson, picker and contact all resolve to `dim_person`; the mart publishes
+  each role's columns under its own prefix
 
-**Extensibility**: Architecture supports additional fact tables for other business processes. Additional dimensions may be introduced as new business processes are added.
+See [Data Modeling](data_modelling.md).
 
-See [Data Modeling](data_modelling.md) for detailed design.
+## Key decisions
 
-## Key Design Decisions
+**1. ELT over ETL.** Extraction lands Parquet and transforms nothing; dbt does it all in SQL, in
+version control. Nothing is loaded — DuckDB reads the Parquet where it sits.
 
-### 1. ELT over ETL
+**2. Four transformation layers, no pass-through.** Staging is exactly one view per source table,
+renames and casts only, no joins — verified across all 15. Intermediate holds joins reused more than
+once; there is one, `int_city_flattened`. Analytics is the star. Marts are denormalised for BI under
+an enforced contract. Five `stg_*_wwi` models whose only job was to be selected from by an
+identically-shaped `analytics/` model are gone, along with the models that selected them.
 
-Extraction lands Parquet and does no transformation; dbt does all of it in SQL, in version
-control. Nothing is loaded into the warehouse — DuckDB reads the Parquet where it sits.
+**3. One surrogate key.** `dim_stock_item.stock_item_sk`, MD5 over the natural key; every other
+dimension is keyed on its natural key. Its original justification — versioning `unit_price` — was
+**falsified by measurement**: no stock item has ever had more than one distinct price, and the data
+generator never writes to that table, so extending the data cannot create history either. Kept
+because it costs nothing and a later Type 2 build would want it.
 
-### 2. dbt Transformation Layers
+## Data quality
 
-- **Staging**: exactly one view per source table. Renames and casts only, **no joins** — verified
-  across all 15.
-- **Intermediate**: joins reused by more than one downstream model. One today,
-  `int_city_flattened`, because `dim_customer` needs city-with-country twice.
-- **Analytics**: the star schema. Dimensions and the fact carry their own joins and materialise
-  as tables.
-- **Marts**: pre-joined and denormalised for BI, with the column list under an enforced contract.
+| Guard | What it covers |
+|---|---|
+| 44 dbt tests | `unique` + `not_null` on every dimension key, ten `relationships` from the fact, manifest row-count parity across all 15 staging models, a mart grain test, a `dim_date` calendar test |
+| Enforced contract | `mart_sales_order_line` declares all 70 columns and types; an upstream change to its shape fails the build |
+| Determinism | `make compare` builds twice and diffs every relation, naming the column when one differs. 0 differing |
+| Snapshot integrity | `make verify` checks Parquet against the SHA256, row counts and column types in the manifest |
+| Static gates | `make check` — ruff, import contracts, mypy, unit tests, `sources.yml` drift |
 
-There is no separate pass-through layer between staging and the star. There used to be five
-`stg_*_wwi` models whose only job was to be selected from by an identically-shaped `analytics/`
-model; both halves are gone.
+Source freshness is not configured and cannot be: the source is a frozen snapshot, so freshness has
+nothing to measure.
 
-### 3. Surrogate Keys
-
-One surrogate key exists: `dim_stock_item.stock_item_sk`, an MD5 over the natural key. Every other
-dimension is keyed on its natural key.
-
-The key is there so a later Type 2 build can give one stock item several rows. Its original
-justification — versioning `unit_price` — was **falsified by measurement**: no stock item in the
-source has ever had more than one distinct price, and the data generator never writes to that table
-at all, so extending the data cannot create history either. It is kept because it costs nothing and
-nothing depends on it.
-
-## Data Quality
-
-- **dbt tests**: 44 tests in the build. `unique` + `not_null` on every dimension key, ten
-  `relationships` tests from the fact, a manifest row-count parity test across all 15 staging
-  models, a grain test on the mart, and a calendar test pinning `dim_date`.
-- **Contract**: `mart_sales_order_line` declares all 70 columns and their types with
-  `contract: enforced`. An upstream column that would change the mart's shape fails the build.
-- **Determinism**: `make test` builds twice into the lake and diffs every relation,
-  naming the column when one differs. 23 relations, 0 differing.
-- **Snapshot integrity**: `make verify` checks the Parquet against the SHA256 and row counts in
-  `data/snapshots/manifest.json`. Row counts are the cheap half; the checksum catches the rest.
-- **Naming standards**: [Naming Convention](naming_convention.md).
-
-Source freshness is not configured, and cannot be: the source is a frozen snapshot, so freshness
-has nothing to measure.
+Naming and SQL style: [Naming Convention](naming_convention.md).
