@@ -3,9 +3,9 @@
 Business context, objectives, current status, and future direction of the data warehouse project
 
 **Project Type**: Learning Project `<br>`
-**Where it stands**: Sales Order star schema built and tested, running on DuckDB over a
-checksummed Parquet snapshot `<br>`
-**Next**: move the snapshot onto object storage; then supply-chain facts
+**Where it stands**: Sales Order star schema built and tested on a DuckLake lakehouse, over a
+checksummed Parquet snapshot on object storage, with CI on every pull request `<br>`
+**Next**: supply-chain facts; then tests on the staging layer
 
 > This file describes **state**, not numbered phases. It used to call the DuckDB re-platform
 > "Phase 2: Infrastructure Automation" while that number meant something else elsewhere, and two
@@ -62,13 +62,13 @@ confident it feels.
   is declared under `contract: enforced`.
 - 🚧 **Performance** — "dashboard queries under 5 seconds" was never measured, and the dashboard it
   referred to points at the frozen BigQuery build. What *is* measured is the build: `make build`
-  reports its own wall clock, and `make compare` runs it twice. CI enforces no time limit on it
+  reports its own wall clock, and `make test` builds it twice. CI enforces no time limit on it
   beyond the job timeout.
 
 ### Technical Requirements
 
 - ✅ **Reproducibility** — two builds of one snapshot produce identical output. 23 relations
-  compared, 0 differing: `make compare`. Two extractions of the same source produce identical row
+  compared, 0 differing: `make test`. Two extractions of the same source produce identical row
   counts and identical column sets; **not identical bytes**, because the source is read without an
   `ORDER BY` and physical row order is not guaranteed. Measured 2026-08-18: 5 of 21 tables came
   back in a different order, same rows.
@@ -77,11 +77,14 @@ confident it feels.
 - 🚧 **Scalability** — the snapshot already carries 21 tables, including the six the supply-chain
   facts need, so the *data* is there. No second business process has been built, so the claim that
   the architecture supports one is a design argument rather than a demonstration.
-- 🚧 **Data quality** — 44 tests exist and each was seen to fail before it was trusted. Still no
-  Great Expectations suite and no CI, so nothing enforces them on a pull request.
-- 🚧 **Automation** — none. `make` is the orchestrator and a human runs it.
-- ❌ **Cost efficiency as a cloud property** — no longer applicable. The warehouse is a local
-  DuckDB file and costs nothing, which is a different claim from the one this line used to make.
+- ✅ **Data quality** — 44 tests exist, each was seen to fail before it was trusted, and CI runs
+  every one of them on a pull request over the committed fixture's real rows: `make check`,
+  `make build_demo`. No Great Expectations suite; the dbt tests are the whole of it.
+- 🚧 **Automation** — CI builds and tests every pull request, but nothing runs on a schedule
+  and no orchestrator owns the extraction. `make` is the orchestrator and a human runs it.
+- ❌ **Cost efficiency as a cloud property** — no longer applicable. The warehouse is a DuckLake
+  lakehouse on containers this repository starts and throws away, so it costs nothing to run. That
+  is a different claim from the one this line used to make.
 
 ## 📋 Project Scope
 
@@ -118,17 +121,23 @@ Each claim below is followed by the command that shows it. Anything without one 
   `data/snapshots/manifest.json`: `make verify`.
 - **44 dbt tests.** Keys, ten referential tests from the fact, manifest row-count parity, a mart
   grain test, a calendar test: `make build`.
-- **A deterministic build.** Two builds, every relation compared, none differing: `make compare`.
+- **A deterministic build.** Two builds, every relation compared, none differing: `make test`.
 - **An enforced contract on the mart.** 70 columns and their types declared; an upstream change
   that would alter the shape fails the build.
 - **Looker Studio dashboards** — against the frozen BigQuery build, not against DuckDB.
+- **The snapshot on object storage.** Published to an S3-compatible store under
+  `bronze/<snapshot-id>/` and read from there by every model: `make seed_bronze`, `make verify`.
+- **CI on every pull request.** `.github/workflows/build.yml` runs lint, import boundaries, types
+  and unit tests without Docker, then brings up the store and the catalog and builds. It has been
+  seen to go red as well as green.
+- **A committed fixture.** `data/demo/` is a reduced, real slice of the snapshot with its own
+  checksums, so a fresh clone runs the real seed-and-verify path: `make demo`. CI builds on it
+  rather than on zero-row Parquet, because on no rows every data-dependent test passes trivially.
+- **Enforced architectural boundaries.** Three import-linter contracts fail the build if anything
+  outside the source connector acquires the means to reach the source: `make lint`.
 
 ### Not built
 
-- **Ingestion is manual into the warehouse.** The extraction produces Parquet on local disk;
-  moving it to object storage is the next piece of work.
-- **No CI.** There is no `.github/`, so nothing checks a pull request. Blocked on the object store,
-  which CI needs as a service container.
 - **One business process.** Sales only. Purchasing, inventory and fulfilment are designed, not built.
 - **No orchestration.** `make` is the orchestrator.
 - **No incremental models.** Everything is a full rebuild, which currently costs seconds.
@@ -155,16 +164,17 @@ requires a fresh snapshot. Until that happens SCD2 is not on the near list.
 
 ## 🗺️ What comes next
 
-In order, because each depends on the one before.
+In order, because each depends on the one before. The first two of the four that used to be listed
+here — the snapshot on object storage, and CI on every pull request — are done and have moved up to
+"Built".
 
-1. **The snapshot moves to object storage**, addressed as `s3://`, with an open table format above
-   it. This is what a real platform's storage layer looks like and the local filesystem is not.
-2. **CI on every pull request** — the object store and catalog as service containers, snapshot
-   verification, then `dbt build`. It must be shown to go red as well as green.
-3. **Supply-chain facts**: purchasing, inventory movement, order fulfilment. Conformed dimensions
+1. **Supply-chain facts**: purchasing, inventory movement, order fulfilment. Conformed dimensions
    are already in the snapshot for these; the extraction pulled 21 tables, not the 15 the sales
-   star needs.
-4. **SCD Type 2**, on a dimension that changes, once the archive tables are in the contract.
+   star needs, and the six spare ones are staged for exactly this.
+2. **Tests and documentation on the staging layer.** Fifteen models carry no `unique`, no
+   `not_null` and one description between them, so a duplicate key first shows up much later and
+   indirectly. This is the largest remaining gap in the dbt project.
+3. **SCD Type 2**, on a dimension that changes, once the archive tables are in the contract.
 
 Not planned: real-time ingestion, ML, production orchestration.
 
@@ -175,7 +185,7 @@ Not planned: real-time ingestion, ML, production orchestration.
 | **Source system changes**   | Breaking pipeline   | The manifest pins column types and the engine version, so a rebuild that disagrees fails rather than drifting |
 | **Documentation drifts from code** | Loss of trust | Every claim carries the command that shows it; a claim that cannot be run gets deleted |
 | **Data quality issues**     | Incorrect analytics | 44 tests in the build, each one shown to fail before it was trusted |
-| **A silent non-determinism**| Unreproducible results | `make compare` builds twice and names the column that differs |
+| **A silent non-determinism**| Unreproducible results | `make test` builds twice and names the column that differs |
 | **Scope creep**             | Delayed delivery    | One business process at a time, and the next step is always the one the others depend on |
 
 ## 🔌 Extension Path

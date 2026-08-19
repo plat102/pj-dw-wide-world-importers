@@ -67,11 +67,12 @@ line.
 
 ### Schemas
 
-The warehouse is one DuckDB database and the layers are schemas inside it.
+The warehouse is a DuckLake lakehouse — Parquet on the object store, catalog in Postgres — and
+the layers are schemas inside its one catalog.
 
 | Schema      | Purpose                                       |
 | ----------- | --------------------------------------------- |
-| —           | Raw Parquet, read in place; nothing is loaded  |
+| —           | Raw Parquet on the object store under `bronze/<snapshot-id>/`, read in place |
 | `main_stg`  | Staging (`stg_`) and intermediate (`int_`)     |
 | `main_dwh`  | Dimensional models                            |
 | `main_mart` | Business-ready denormalised tables            |

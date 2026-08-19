@@ -27,7 +27,7 @@ inside it, not separate datasets.
 
 | Schema       | Layer        | Contents                                                        |
 | ------------ | ------------ | --------------------------------------------------------------- |
-| —            | Source       | Parquet under `data/raw/`, read in place; nothing is loaded      |
+| —            | Source       | Parquet on the object store under `bronze/<snapshot-id>/`, read in place |
 | `main_stg`   | Staging      | One view per source table, plus intermediate joins              |
 | `main_dwh`   | Dimensional  | The star schema: dimensions, role-playing views, the fact       |
 | `main_mart`  | Mart         | One denormalised table for BI                                   |
