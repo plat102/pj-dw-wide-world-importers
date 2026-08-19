@@ -19,7 +19,7 @@ DEMO_DIR := data/demo
 DEMO_MANIFEST := $(DEMO_DIR)/manifest.json
 DEMO_SNAPSHOT_ID = $(shell uv run python -c "import json;print(json.load(open('$(DEMO_MANIFEST)'))['snapshot_id'])")
 
-.PHONY: up down clean_storage seed_bronze seed_bronze_empty seed_demo install deps parse build build_demo extract demo demo_fixture manifest sources sources_check verify compare shape compact compact_dry
+.PHONY: up down clean_storage seed_bronze seed_bronze_empty seed_demo install deps parse build build_demo extract demo demo_fixture manifest sources sources_check verify compare shape
 
 # --- storage layer ----------------------------------------------------------------------
 # Credentials come from .env; an unset one stops the stack rather than guessing a value.
@@ -112,14 +112,6 @@ verify:
 # Every relation with its row and column count. Exists so no document carries a row count.
 shape:
 	uv run python -m scripts.warehouse_shape
-
-# Expire old lake snapshots and delete the files they held. Not part of `build`: a store fills up
-# over weeks, not per build. The current snapshot never expires.
-compact:
-	uv run python -m scripts.lake_retention
-
-compact_dry:
-	uv run python -m scripts.lake_retention --dry-run
 
 # Two builds of one snapshot must be identical. Names the relation and the column when not.
 compare:

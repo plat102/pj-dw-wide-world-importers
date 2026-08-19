@@ -129,7 +129,7 @@ make demo
 One command, and it does not shorten anything away: it installs the pinned environment and the dbt
 packages, writes a `.env` with generated local credentials, brings up the object store and the
 DuckLake catalog, publishes the committed fixture, **verifies every object against its checksum**,
-builds all 26 models, runs all 50 tests, and prints every relation with its row count. Measured on a
+builds all 23 models, runs all 44 tests, and prints every relation with its row count. Measured on a
 fresh clone with no source database: **36 seconds cold, 31 seconds on a second run.**
 
 It refuses rather than guesses in two places. If `MSSQL_CONNECTION_STRING` is set it stops -- the
@@ -164,7 +164,7 @@ SQL Server nor 24 MB of Parquet. Nothing downstream can tell them apart -- no mo
 names either one, and `SNAPSHOT_ID` is the only thing that selects between them.
 
 With the real snapshot in `data/raw/`, `make seed_bronze` publishes it to the store instead and the
-build produces the warehouse in full: 26 models and 50 tests.
+build produces the warehouse in full: 23 models and 44 tests.
 
 `make seed_bronze_empty` remains for the third case, and it is worth knowing what it is for: it
 writes zero-row Parquet carrying the manifest's exact columns and types, so every model still
@@ -181,7 +181,6 @@ Worth knowing:
 make verify     # check the published snapshot against its manifest
 make shape      # every relation with its row and column count
 make compare    # build twice, diff every table -- proves the build is deterministic
-make compact    # expire old lake snapshots and reclaim the files they held
 make down       # stop the stack, keeping the data (clean_storage deletes it)
 make extract    # refresh the snapshot from SQL Server; one read-only login, no sa
 ```

@@ -109,16 +109,16 @@ nothing builds against.
 **The object store is a replaceable detail, and that was tested rather than assumed.** The whole
 stack was brought up against a second S3-compatible implementation (RustFS) with one compose
 override that changed the image and nothing else -- same credentials, same bucket, same dbt
-profile, same models -- and all 26 relations came out with identical row counts. The override file
+profile, same models -- and all 23 relations came out with identical row counts. The override file
 is not kept in the repository: it was evidence for a design claim, not something that runs. The
 claim it supports is that nothing above `docker-compose.yml` names the product behind the endpoint.
 
 **`-volume.max=10` in `docker-compose.yml` is a real ceiling**, not a formality: at
 `volumeSizeLimitMB=1024` that is 10 GiB, and every build writes a full copy of each table into the
 lake. A store with no free volumes left refuses writes to a new bucket outright and will eventually
-refuse them to an existing one. `make compact` is what keeps the store writable; the seven-day
-default window never fires on a machine that rebuilds daily, so pass `--older-than-days` when you
-mean it.
+refuse them to an existing one. There is no retention command: one was written, never needed on a
+store holding a single snapshot, and deleted rather than carried. A store that does fill up is reset
+with `make clean_storage` and rebuilt.
 
 ## Data Model
 
@@ -168,13 +168,13 @@ nothing depends on it.
 
 ## Data Quality
 
-- **dbt tests**: 50 tests in the build. `unique` + `not_null` on every dimension key, ten
+- **dbt tests**: 44 tests in the build. `unique` + `not_null` on every dimension key, ten
   `relationships` tests from the fact, a manifest row-count parity test across all 15 staging
   models, a grain test on the mart, and a calendar test pinning `dim_date`.
 - **Contract**: `mart_sales_order_line` declares all 70 columns and their types with
   `contract: enforced`. An upstream column that would change the mart's shape fails the build.
 - **Determinism**: `make compare` builds twice into two databases and diffs every relation,
-  naming the column when one differs. 26 relations, 0 differing.
+  naming the column when one differs. 23 relations, 0 differing.
 - **Snapshot integrity**: `make verify` checks the Parquet against the SHA256 and row counts in
   `data/snapshots/manifest.json`. Row counts are the cheap half; the checksum catches the rest.
 - **Naming standards**: [Naming Convention](naming_convention.md).

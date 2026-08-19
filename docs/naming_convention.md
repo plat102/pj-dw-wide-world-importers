@@ -28,8 +28,7 @@ models/
 ├── intermediate/               # Joins reused by more than one model
 ├── analytics/
 │   ├── dim_*.sql               # Dimension tables
-│   ├── fact_*.sql              # Fact tables
-│   └── role_playing_dimension/ # Views on dimension tables
+│   └── fact_*.sql              # Fact tables
 └── marts/
     └── sales/                  # Grouped by business domain
 ```

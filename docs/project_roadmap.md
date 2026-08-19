@@ -67,7 +67,7 @@ confident it feels.
 
 ### Technical Requirements
 
-- ✅ **Reproducibility** — two builds of one snapshot produce identical output. 26 relations
+- ✅ **Reproducibility** — two builds of one snapshot produce identical output. 23 relations
   compared, 0 differing: `make compare`. Two extractions of the same source produce identical row
   counts and identical column sets; **not identical bytes**, because the source is read without an
   `ORDER BY` and physical row order is not guaranteed. Measured 2026-08-18: 5 of 21 tables came
@@ -77,7 +77,7 @@ confident it feels.
 - 🚧 **Scalability** — the snapshot already carries 21 tables, including the six the supply-chain
   facts need, so the *data* is there. No second business process has been built, so the claim that
   the architecture supports one is a design argument rather than a demonstration.
-- 🚧 **Data quality** — 50 tests exist and each was seen to fail before it was trusted. Still no
+- 🚧 **Data quality** — 44 tests exist and each was seen to fail before it was trusted. Still no
   Great Expectations suite and no CI, so nothing enforces them on a pull request.
 - 🚧 **Automation** — none. `make` is the orchestrator and a human runs it.
 - ❌ **Cost efficiency as a cloud property** — no longer applicable. The warehouse is a local
@@ -110,13 +110,13 @@ Each claim below is followed by the command that shows it. Anything without one 
 
 ### Built
 
-- **Sales Order star schema on DuckDB.** 26 models, `dbt build` green: `make build`.
+- **Sales Order star schema on DuckDB.** 23 models, `dbt build` green: `make build`.
 - **Reproducible extraction.** 21 tables, 277 columns, read inside one snapshot-isolation
   transaction in under a minute: `make extract`. Two runs agree on row counts and column sets, not
   on bytes — row order is not pinned.
 - **A snapshot contract.** SHA256, row count and column type per table in
   `data/snapshots/manifest.json`: `make verify`.
-- **50 dbt tests.** Keys, ten referential tests from the fact, manifest row-count parity, a mart
+- **44 dbt tests.** Keys, ten referential tests from the fact, manifest row-count parity, a mart
   grain test, a calendar test: `make build`.
 - **A deterministic build.** Two builds, every relation compared, none differing: `make compare`.
 - **An enforced contract on the mart.** 70 columns and their types declared; an upstream change
@@ -174,7 +174,7 @@ Not planned: real-time ingestion, ML, production orchestration.
 | --------------------------- | ------------------- | -------------------------------------------------------------- |
 | **Source system changes**   | Breaking pipeline   | The manifest pins column types and the engine version, so a rebuild that disagrees fails rather than drifting |
 | **Documentation drifts from code** | Loss of trust | Every claim carries the command that shows it; a claim that cannot be run gets deleted |
-| **Data quality issues**     | Incorrect analytics | 50 tests in the build, each one shown to fail before it was trusted |
+| **Data quality issues**     | Incorrect analytics | 44 tests in the build, each one shown to fail before it was trusted |
 | **A silent non-determinism**| Unreproducible results | `make compare` builds twice and names the column that differs |
 | **Scope creep**             | Delayed delivery    | One business process at a time, and the next step is always the one the others depend on |
 

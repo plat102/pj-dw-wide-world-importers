@@ -45,22 +45,6 @@ models:
       - name: full_date
         data_tests: [unique, not_null]
 
-  - name: dim_contact_person
-    columns:
-      - name: contact_person_key
-        data_tests: [unique, not_null]
-
-  - name: dim_picked_by_person
-    columns:
-      - name: picked_by_person_key
-        data_tests: [unique, not_null]
-
-  - name: dim_salesperson_person
-    description: "dim_person filtered to salespeople. A role-playing view, not a separate dimension."
-    columns:
-      - name: salesperson_person_key
-        data_tests: [unique, not_null]
-
   - name: fact_sales_order_line
     description: "One row per order line. The grain the whole star hangs off."
     columns:

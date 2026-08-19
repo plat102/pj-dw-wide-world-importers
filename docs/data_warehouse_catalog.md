@@ -188,15 +188,6 @@ is easiest to get wrong.
 | `day_name`       | VARCHAR | `Monday`, …                                                         |
 | `day_is_weekday` | INTEGER | **0 or 1, not a boolean** despite the `is_` prefix |
 
-### Role-playing views
-
-`dim_contact_person`, `dim_picked_by_person` and `dim_salesperson_person` are views over
-`dim_person` with every column prefixed for its role. 8 columns each. The first two carry every
-person; `dim_salesperson_person` filters `is_salesperson` and is much smaller.
-
-They are built and tested but **nothing reads them**: `mart_sales_order_line` joins `dim_person`
-directly under three aliases instead. They exist so a BI tool can join a role without aliasing.
-
 ## Mart
 
 ### `mart_sales_order_line` — 70 columns
