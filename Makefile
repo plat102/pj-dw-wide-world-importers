@@ -8,10 +8,18 @@ export
 DBT_DIR := wide_world_importers_dw
 PROFILES_ARG := $(if $(PROFILES_DIR),--profiles-dir $(PROFILES_DIR),)
 DBT := uv run dbt
+# One definition of the build command; `build` and `build_demo` differ only in what they add to it.
+DBT_BUILD = $(DBT) build --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
 # Read from the live source in one snapshot-isolation transaction: read-only SELECT is enough.
 SOURCE_DB := WideWorldImporters
 
-.PHONY: up down clean_storage seed_bronze seed_bronze_empty install deps parse build extract demo demo_fixture manifest sources sources_check verify compare shape compact compact_dry
+# The committed fixture. Its id is read from its own manifest, never typed, so the two cannot
+# disagree -- and `=` rather than `:=` so nothing shells out until a demo target actually runs.
+DEMO_DIR := data/demo
+DEMO_MANIFEST := $(DEMO_DIR)/manifest.json
+DEMO_SNAPSHOT_ID = $(shell uv run python -c "import json;print(json.load(open('$(DEMO_MANIFEST)'))['snapshot_id'])")
+
+.PHONY: up down clean_storage seed_bronze seed_bronze_empty seed_demo install deps parse build build_demo extract demo demo_fixture manifest sources sources_check verify compare shape compact compact_dry
 
 # --- storage layer ----------------------------------------------------------------------
 # Credentials come from .env; an unset one stops the stack rather than guessing a value.
@@ -36,10 +44,17 @@ seed_bronze:
 	uv run python -m scripts.seed_bronze
 	uv run python -m scripts.verify_snapshot
 
-# Zero-row Parquet carrying the manifest's schema. What CI seeds, because the real snapshot is
-# not in the repository. A build over it still executes every model, so a column break fails.
+# Zero-row Parquet carrying the manifest's schema. Every model still executes, so a renamed or
+# missing column fails on a binder error -- but anything data-dependent passes on no rows, which is
+# why this is no longer what CI builds on. Kept for a pure schema-break check.
 seed_bronze_empty:
 	uv run python -m scripts.seed_bronze --empty
+
+# Publishes the committed fixture and verifies what landed against its own checksums. What CI seeds:
+# real rows, so the referential tests have something to fail on.
+seed_demo:
+	SNAPSHOT_ID=$(DEMO_SNAPSHOT_ID) uv run python -m scripts.seed_bronze --manifest $(DEMO_MANIFEST) --data-dir $(DEMO_DIR)
+	SNAPSHOT_ID=$(DEMO_SNAPSHOT_ID) uv run python -m scripts.verify_snapshot --manifest $(DEMO_MANIFEST)
 
 # --- python + dbt -----------------------------------------------------------------------
 
@@ -53,7 +68,13 @@ parse:
 	$(DBT) parse --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
 
 build:
-	$(DBT) build --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
+	$(DBT_BUILD)
+
+# Build over the fixture rather than the shipped snapshot. manifest_path is absolute because DuckDB
+# resolves a relative path against the working directory, and the macro that reads it runs wherever
+# dbt happens to be invoked from.
+build_demo:
+	SNAPSHOT_ID=$(DEMO_SNAPSHOT_ID) $(DBT_BUILD) --vars '{"manifest_path": "$(CURDIR)/$(DEMO_MANIFEST)"}'
 
 # data/raw/ is staging, not where the snapshot lives. The published snapshot is on the object
 # store under bronze/<snapshot-id>/; this chain ends by putting it there and verifying it landed.
