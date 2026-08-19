@@ -100,7 +100,7 @@ Build a dimensional data warehouse to support analytics for Wide World Importers
 
 ### `mart_sales_order_line`
 
-Fully denormalized fact with all dimension attributes joined, eliminating need for BI tool to perform joins. Generated using dbt macros to dynamically select columns from each dimension.
+Fully denormalized fact with all dimension attributes joined, eliminating need for BI tool to perform joins. The column list is written out, not generated: a generated list lets an upstream column reach the published surface silently, and `contract: enforced` holds the list to what is declared.
 
 ## Data Lineage
 
