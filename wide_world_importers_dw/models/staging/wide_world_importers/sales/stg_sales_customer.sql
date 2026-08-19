@@ -8,7 +8,7 @@ with raw as (
 , raw__select_column as (
     select
         customer_id AS customer_key
-        , customer_name AS customer_name
+        , customer_name AS customer_legal_name
         , bill_to_customer_id AS bill_to_customer_key
         , customer_category_id AS customer_category_key
         , buying_group_id AS buying_group_key
