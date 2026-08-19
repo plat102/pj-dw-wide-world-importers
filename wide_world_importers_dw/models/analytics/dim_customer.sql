@@ -47,4 +47,4 @@ left join {{ ref('stg_application_person') }} as person_alternate
 left join {{ ref('stg_application_delivery_method') }}
     on stg_sales_customer.delivery_method_key = stg_application_delivery_method.delivery_method_key
 left join {{ ref('int_city_flattened') }} as city_delivery
-    on stg_sales_customer.delivery_city_key = city_delivery.city_key
+    on stg_sales_customer.delivery_city_key = city_delivery.state_province_key
