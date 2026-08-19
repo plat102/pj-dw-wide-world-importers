@@ -11,7 +11,7 @@ DBT := uv run dbt
 # Read from the live source in one snapshot-isolation transaction: read-only SELECT is enough.
 SOURCE_DB := WideWorldImporters
 
-.PHONY: up down clean_storage seed_bronze seed_bronze_empty install deps parse build extract manifest sources sources_check verify compare shape compact compact_dry
+.PHONY: up down clean_storage seed_bronze seed_bronze_empty install deps parse build extract demo_fixture manifest sources sources_check verify compare shape compact compact_dry
 
 # --- storage layer ----------------------------------------------------------------------
 # Credentials come from .env; an unset one stops the stack rather than guessing a value.
@@ -65,6 +65,12 @@ extract:
 
 manifest:
 	uv run python -m scripts.generate_manifest
+
+# The reduced fixture a fresh clone builds on: real rows, real checksums, ~2.4 MB. Derived from the
+# snapshot in data/raw/, so this needs a machine that has run the extraction -- unlike `make demo`,
+# which only needs what is committed. Deterministic: two runs produce identical files.
+demo_fixture:
+	uv run python -m scripts.make_demo_fixture
 
 # sources.yml is a projection of the manifest. Regenerate after every extraction.
 sources:
