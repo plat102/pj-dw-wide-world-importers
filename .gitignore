@@ -22,9 +22,32 @@ logs/*
 
 wide_world_importers_dw/profiles*.yml
 
-package-lock.yml
+# package-lock.yml is tracked on purpose: it is what pins dbt_utils across machines.
 
-*gitignore*
 
 *.env
 */secrets/*
+# The Parquet snapshot is published output, never repository content. Only the manifest that
+# describes it is tracked -- see data/snapshots/manifest.json.
+#
+# data/demo/ is deliberately NOT ignored. It is a different artifact: a reduced, labelled
+# derivative of the snapshot, ~2.4 MB, so a fresh clone has real rows to build and verify against.
+# It carries kind: demo_fixture and derived_from in its own manifest. Regenerate with
+# `make demo_fixture`; never hand-edit it.
+data/raw/
+
+# Nothing in the build produces this any more; the read-only DuckDB client recreates it on
+# connect, so it stays ignored rather than tracked.
+*.duckdb
+*.duckdb.wal
+
+__pycache__/
+*.py[cod]
+
+# setuptools writes this when the project is installed into the venv. Build output, not source.
+*.egg-info/
+
+# Local credentials for the object store, the catalog and the source. `.env.example` is tracked
+# and holds no value; `.env` holds the values and never is. `*.env` above already covers it, but
+# the name is spelled out because it is the file that matters most.
+.env

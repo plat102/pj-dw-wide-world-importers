@@ -1,134 +1,169 @@
 # Wide World Importers Data Warehouse
-> A data warehouse project built from the **Wide World Importers** operational database, designed to consolidate business data into a dimensional model optimized for analytics and visualization.
+
+> Kimball star schema over the Wide World Importers sample OLTP, built on a DuckLake lakehouse.
 
 [![dbt](https://img.shields.io/badge/dbt-FF694B?logo=dbt&logoColor=white)](https://www.getdbt.com/)
-[![BigQuery](https://img.shields.io/badge/BigQuery-669DF6?logo=google-cloud&logoColor=white)](https://cloud.google.com/bigquery)
+[![DuckDB](https://img.shields.io/badge/DuckDB-FFF000?logo=duckdb&logoColor=black)](https://duckdb.org/)
+[![Parquet](https://img.shields.io/badge/Apache%20Parquet-50ABF1?logo=apacheparquet&logoColor=white)](https://parquet.apache.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![SQL Server](https://img.shields.io/badge/SQL%20Server-CC2927?logo=microsoft-sql-server&logoColor=white)](https://www.microsoft.com/sql-server)
-[![Looker Studio](https://img.shields.io/badge/Looker%20Studio-4285F4?logo=looker&logoColor=white)](https://lookerstudio.google.com/)
 [![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 
----
+## Quick start
 
-## 📊 Overview
+Needs `git`, `make`, [uv](https://docs.astral.sh/uv/) and a container runtime. No cloud account, no
+SQL Server, nothing to fill in.
 
-This project consolidates **Wide World Importers** OLTP data into a **BigQuery** data warehouse using **dbt** for transformation and **Looker Studio** for visualization.
+```bash
+make demo
+```
 
-| Layer | Technology | Description |
-|--------|-------------|-------------|
-| **Source** | SQL Server | Wide World Importers OLTP database |
-| **Ingestion** | Manual upload | Data ingestion pipeline to BigQuery. Plan to dlt |
-| **Warehouse** | BigQuery | Cloud data warehouse (raw → staging → DWH → mart) |
-| **Transformation** | dbt Core | Modular ELT transformations, dimensional modeling |
-| **Visualization** | Looker Studio | Interactive dashboards & self-service BI |
+Installs the environment and dbt packages, writes a `.env` with generated local credentials, brings
+up the object store and catalog, publishes the committed fixture, verifies every object against its
+checksum, builds 23 models, runs 44 tests, prints every relation.
 
-**Business Problem:** Analytical queries slow down the transactional system; business teams rely on IT for ad-hoc reports.  
-**Solution:** A scalable cloud data warehouse with star schema models and self-service BI.  
-**Outcomes:** Faster insights, sub-5s dashboards, and reduced IT dependency.
+It refuses rather than guesses twice: if `MSSQL_CONNECTION_STRING` is set, and if the lake already
+holds a warehouse this fixture did not build.
+
+## Overview
+
+| Layer | Technology | Role |
+|---|---|---|
+| Source | SQL Server | WWI OLTP, one read-only login |
+| Extraction | dlt | 21 tables to Parquet in one snapshot-isolation transaction |
+| Storage | S3-compatible object store | snapshot under `bronze/<id>/`, lake under `lake/` |
+| Warehouse | DuckLake (DuckDB + Postgres catalog) | raw → staging → analytics → mart |
+| Transformation | dbt Core | dimensional models, enforced contract on the mart |
+
+**Problem:** analytical queries slow the transactional system; reports need IT.
+**Solution:** a dimensional warehouse reproducible from a checksummed snapshot.
 
 ![Data Warehouse ERD](docs/image/dwh_erd.png)
-*Figure: Dimensional model overview*
 
----
+## Architecture
 
-## 🏗️ Architecture
-
-**Data Flow**
+Two stages. The boundary is the point: **the extraction holds the source credential, nothing
+downstream can reach the source.** Enforced — `make lint` fails if any package outside the source
+connector acquires the means to connect.
 
 ```mermaid
 flowchart LR
     subgraph source["📦 Source"]
-        OLTP[Wide World Importers<br/>OLTP Database]
+        OLTP[Wide World Importers<br/>SQL Server]
     end
-    
-    subgraph ingest["⚡ Ingestion"]
+
+    subgraph ingest["⚡ Extraction"]
         direction TB
-        CSV[<b>Manual Upload<br/>CSV</b>]
-        DLT["(dlt Pipeline)"]
+        DLT[dlt<br/>one snapshot-isolation<br/>transaction]
+        MANIFEST[manifest.json<br/>checksums, row counts, types]
     end
-    
-    subgraph dwh["☁️ BigQuery<br>Data Warehouse"]
+
+    subgraph store["🪣 Object store"]
+        BRONZE[bronze/&lt;snapshot-id&gt;/<br/>Parquet]
+    end
+
+    subgraph dwh["🦆 DuckLake<br>lakehouse"]
         direction TB
-        
-        RAW[Raw Layer<br/>wwi_raw]
-        STG[Staging<br/>wwi_stg]
-        ANALYTICS[Analytics<br/>wwi_dwh]
-        MART[Mart<br/>wwi_mart]
-        
-        RAW -->|dbt| STG
+        STG[Staging<br/>main_stg]
+        ANALYTICS[Analytics<br/>main_dwh]
+        MART[Mart<br/>main_mart]
+
         STG -->|dbt| ANALYTICS
         ANALYTICS -->|dbt| MART
     end
-    
+
     subgraph bi["📊 Visualization"]
-        LOOKER[Looker Studio<br/>Dashboards]
+        LOOKER[Looker Studio<br/>frozen exhibit]
     end
-    
-    OLTP --> CSV
-    OLTP -.-> DLT
-    CSV --> RAW
-    DLT -.-> RAW
-    MART ==> LOOKER
-    
+
+    OLTP --> DLT
+    DLT --> MANIFEST
+    DLT --> BRONZE
+    BRONZE -->|dbt reads s3://| STG
+    MART -.-> LOOKER
+
     style OLTP fill:#E8E8E8,stroke:#666,stroke-width:2px,color:#333
-    style CSV fill:#FFE4B5,stroke:#FFA500,stroke-width:2px,color:#333
-    style DLT fill:#FFE4B5,stroke:#FFA500,stroke-width:2px,stroke-dasharray: 5 5,color:#333
-    style RAW fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
+    style DLT fill:#FFE4B5,stroke:#FFA500,stroke-width:2px,color:#333
+    style MANIFEST fill:#FFE4B5,stroke:#FFA500,stroke-width:2px,color:#333
+    style BRONZE fill:#FFF9C4,stroke:#FBC02D,stroke-width:2px,color:#333
     style STG fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
     style ANALYTICS fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
     style MART fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
-    style LOOKER fill:#C8E6C9,stroke:#4CAF50,stroke-width:2px,color:#333
+    style LOOKER fill:#EEEEEE,stroke:#9E9E9E,stroke-width:2px,stroke-dasharray: 5 5,color:#333
 ```
 
-**Data Layers**
+One catalog; the layers are schemas inside it.
 
-- `wwi_raw` - Raw data ingested from source
-- `wwi_stg` - Staging and intermediate transformations
-- `wwi_dwh` - Dimensional models (facts & dimensions)
-- `wwi_mart` - Denormalized reporting datasets
+| Schema | Holds |
+|---|---|
+| `bronze/<id>/` | Parquet on the object store, read in place |
+| `main_stg` | staging (`stg_`) and intermediate (`int_`) |
+| `main_dwh` | dimensions and facts (`dim_`, `fact_`) |
+| `main_mart` | denormalized reporting tables (`mart_`) |
 
+## Three ways to seed
 
----
+| Command | Data | Use |
+|---|---|---|
+| `make demo` | committed fixture, ~2.4 MB, real rows and checksums | fresh clone; what CI builds |
+| `make seed_bronze` | the real snapshot from `data/raw/` | the full warehouse |
+| `make seed_bronze_empty` | zero-row Parquet with the manifest's schema | "did a column break", not "is the data right" |
 
-## 📂 Project Structure
+**The Parquet snapshot is not in this repository and never will be** — only its manifest is. The
+fixture in `data/demo/` is a reduced derivative with its own manifest and its own real checksums, so
+a clone runs the same seed-and-verify path. Nothing downstream can tell them apart; `SNAPSHOT_ID`
+selects between them.
+
+## Commands
+
+```bash
+make check      # lint, import boundaries, types, unit tests, sources.yml drift
+make build      # dbt build against whatever is seeded
+make verify     # published snapshot against its manifest
+make shape      # every relation with its row and column count
+make compare    # build twice, diff every table
+make extract    # refresh the snapshot from SQL Server
+make down       # stop the stack, keeping data (clean_storage deletes it)
+```
+
+## Project structure
 
 ```
-├── docs/                           # Project documentation
-├── etl/                            # Data ingestion scripts
-├── wide_world_importers_dw/        # dbt project
-│   ├── models/
-│   │   ├── staging/                # Source data standardization
-│   │   ├── analytics/              # Dimensional models (dim_*, fact_*)
-│   │   └── marts/                  # Denormalized reporting datasets
-│   └── dbt_project.yml
-└── scripts/                        # Utility SQL scripts
+├── docs/                    # Project documentation
+├── infrastructure/          # Container config, source login SQL
+├── data/
+│   ├── demo/                # Committed fixture
+│   └── snapshots/           # manifest.json — the snapshot contract
+├── src/
+│   ├── cli/                 # The `wwi` command
+│   ├── config/              # Settings; the only place an env var is named
+│   ├── connectors/          # mssql, s3, ducklake
+│   ├── contracts/           # Manifest, paths, types, dbt sources projection
+│   ├── ingestion/           # Source → Parquet → object store
+│   ├── warehouse/           # Reading the built warehouse
+│   ├── demo/                # The fresh-clone path
+│   └── utils/
+├── tests/                   # unit/ needs nothing; integration/ needs the stack
+├── wide_world_importers_dw/ # dbt project
+└── docker-compose.yml       # Object store + DuckLake catalog
 ```
 
-## 📈 Sample Reports
+## Documentation
+
+| Document | Covers |
+|---|---|
+| [Roadmap](docs/project_roadmap.md) | Business context, status, what comes next |
+| [Technical Design](docs/technical_design.md) | Architecture and stack |
+| [Data Modeling](docs/data_modelling.md) | Dimensional model |
+| [Data Catalog](docs/data_warehouse_catalog.md) | Tables and columns |
+| [Naming Conventions](docs/naming_convention.md) | Standards and SQL style |
+
+## Sample reports — a frozen exhibit
+
+**These dashboards run against a BigQuery build that is no longer maintained.** The warehouse moved
+to DuckLake; the BigQuery datasets and the ingestion that fed them are kept as an exhibit, not as
+something this repository can reproduce.
 
 [View Live Dashboard](https://lookerstudio.google.com/reporting/54a88f82-aeee-494c-b81f-31bb320f299c)
 
 ![Looker Studio Example](docs/image/looker_studio.png)
-
-## 📚 Documentation
-
-- [Project Roadmap](docs/project_roadmap.md) - Business context, objectives, status, and future plans
-- [Technical Design](docs/technical_design.md) - Architecture and technology stack
-- [Data Modeling](docs/data_modelling.md) - Dimensional model design
-- [Data Catalog](docs/data_warehouse_catalog.md) - Table and column definitions
-- [Naming Conventions](docs/naming_convention.md) - Standards and best practices
-
-## 🚀 Quick Start
-
-**Requirements:** Python 3.9+, dbt-bigquery, GCP credentials
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure dbt
-cp profiles.sample.yml ~/.dbt/profiles.yml
-
-# Run models & tests
-cd wide_world_importers_dw
-dbt run
-dbt test

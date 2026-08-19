@@ -1,154 +1,121 @@
 # Project Roadmap
 
-Business context, objectives, current status, and future direction of the data warehouse project
+**Type**: Learning project
+**Where it stands**: Sales Order star schema on a DuckLake lakehouse, over a checksummed Parquet
+snapshot on object storage, with CI on every pull request
+**Next**: supply-chain facts, then tests on the staging layer
 
-**Project Type**: Learning Project `<br>`
-**Current Phase**: Phase 1 Complete (Sales Order) `<br>`
-**Next Milestone**: Automated ingestion + Purchase Order analytics
+> This file describes **state**, not numbered phases. Nothing in this repository numbers phases; it
+> says what is true instead.
 
----
+## Business context
 
-## 📊 Business Context
+WWI runs on an OLTP database optimized for transactions:
 
-Wide World Importers relies on an OLTP database optimized for transactions, creating analytical challenges:
+- Analytical queries slow down operational systems
+- Business insight needs joins across 10+ normalized tables
+- No historical tracking, so no trend analysis
+- Business users wait days for custom reports
 
-- **Performance bottleneck**: Analytical queries slow down operational systems
-- **Complex data access**: Business insights require joining 10+ normalized tables
-- **No historical tracking**: Cannot analyze trends or changes over time
-- **IT dependency**: Business users wait days for custom reports
+**Objective**: a dimensional warehouse enabling self-service analytics for sales managers,
+operations and executives.
 
-**Business Impact:** Delayed decision-making, missed sales opportunities, inability to forecast accurately
+## Success criteria
 
----
+A ✅ means there is a command whose output shows it. Anything without one is 🚧, however confident
+it feels.
 
-## 🎯 Objective
+| | Criterion | Evidence |
+|---|---|---|
+| ✅ | **Data completeness** | Every staging model's row count matches the manifest. `make build` runs `assert_staging_matches_manifest` over all 15 |
+| ✅ | **Accuracy** | Every extracted table's row count matches the source, 0 discrepancies over all 21. `make verify` |
+| ✅ | **Referential integrity** | Ten `relationships` tests from the fact, `unique` + `not_null` on every dimension key. `make build` |
+| ✅ | **Flexibility** | `mart_sales_order_line` is one table, 70 columns, no join needed, shape declared under `contract: enforced` |
+| ✅ | **Reproducibility** | Two builds of one snapshot, every relation compared, 0 differing: `make compare` |
+| ✅ | **Maintainability** | Transformations are SQL in version control; every claim carries its command |
+| ✅ | **Data quality** | 44 tests, each seen to fail before it was trusted, all run in CI over the fixture's real rows: `make check`, `make build_demo` |
+| 🚧 | **Performance** | "Dashboard queries under 5 seconds" was never measured, and that dashboard points at the frozen BigQuery build. The build's own wall clock is what is measured |
+| 🚧 | **Scalability** | The snapshot carries the six tables the supply-chain facts need, so the data is there. No second business process exists, so this is a design argument, not a demonstration |
+| 🚧 | **Automation** | CI builds and tests every pull request, but nothing runs on a schedule and no orchestrator owns the extraction |
+| ❌ | **Cost efficiency as a cloud property** | No longer applicable — the warehouse runs on containers this repository starts and throws away |
 
-Build a modern cloud-based data warehouse to enable self-service analytics and data-driven decision making.
+Two extractions of one source agree on row counts and column sets but **not on bytes**: the source
+is read without `ORDER BY` and physical row order is not guaranteed. Measured 2026-08-18: 5 of 21
+tables came back reordered, same rows.
 
-**Primary Goals:**
+## Scope
 
-1. Implement a dimensional model optimized for sales analytics
-2. Establish a scalable ELT pipeline using modern data stack
-3. Enable business users to create their own reports via BI tools
-4. Demonstrate best practices in data warehouse design and implementation
+**In**: Sales Order (processing, fulfillment, delivery), from the WWI OLTP database. dbt on DuckLake
+over a Parquet snapshot; the BigQuery build is a frozen exhibit.
 
-**Target Users:**
+**Out**: real-time ingestion, ML, production orchestration and monitoring.
 
-- Sales managers analyzing performance by customer, product, and time period
-- Operations team monitoring order fulfillment and delivery metrics
-- Executives tracking KPIs and business trends
+SCD Type 2 was once listed as a deliverable and is **not built** — see [Change tracking](#change-tracking).
 
-## ☑️Success Criteria
+## Where it stands
 
-### Functional Requirements
+### Built
 
-- ✅ **Data Completeness**: All sales transaction data from source system available in warehouse
-- ✅ **Performance**: Dashboard queries execute in < 5 seconds
-- ✅ **Flexibility**: Business users can slice and dice data without SQL knowledge
-- ✅ **Accuracy**: Data reconciliation between source and warehouse shows 100% match
+| What | Shown by |
+|---|---|
+| Sales Order star schema, 23 models | `make build` |
+| Reproducible extraction, 21 tables, 277 columns, one snapshot-isolation transaction | `make extract` |
+| A snapshot contract — SHA256, row count and column types per table | `make verify` |
+| 44 dbt tests: keys, ten referential, manifest parity, mart grain, calendar | `make build` |
+| A deterministic build | `make compare` |
+| An enforced contract on the mart, 70 columns | `make build` |
+| The snapshot on object storage under `bronze/<snapshot-id>/` | `make seed_bronze` |
+| CI on every pull request, seen red as well as green | `.github/workflows/build.yml` |
+| A committed fixture with real rows and real checksums — what CI builds on | `make demo` |
+| Enforced architectural boundaries, three import contracts | `make lint` |
+| Looker Studio dashboards | against the frozen BigQuery build |
 
-### Technical Requirements
+### Not built
 
-- ✅ **Scalability**: Architecture supports additional business processes (purchases, inventory)
-- ✅ **Maintainability**: Version-controlled transformations with clear documentation
-- ✅ **Cost Efficiency**: Cloud-based solution with minimal operational overhead
-- 🚧 **Data Quality**: Automated testing and validation (in progress)
-- 🚧 **Automation**: Scheduled incremental loads (planned)
+- **One business process.** Sales only; purchasing, inventory and fulfilment are designed, not built.
+- **No orchestration.** `make` is the orchestrator and a human runs it.
+- **No incremental models.** Everything is a full rebuild, which currently costs seconds.
+- **Staging has no tests or docs.** 15 models, no `unique`, no `not_null`, one description between them.
 
-## 📋 Project Scope
+### Change tracking
 
-### In Scope
+**One position on SCD Type 2, and it is this one.** Every dimension is **Type 0**: a change
+overwrites.
 
-- **Business Process**: Sales Order (order processing, fulfillment, delivery)
-- **Data Sources**: Wide World Importers OLTP database
-- **Deliverables**:
-  - Dimensional data warehouse (star schema)
-  - BI dashboards for sales performance analysis
-  - Complete technical documentation
-  - Historical change tracking (SCD Type 2)
-- **Technology**: Cloud-based modern data stack (BigQuery, dbt, Looker Studio)
+`dim_stock_item` carries the only surrogate key, `stock_item_sk`, so a Type 2 build could later give
+one item several rows. It was introduced to version `unit_price` and that reason was wrong: **no
+stock item has ever had more than one distinct price** — the only column that changes is a JSON tag
+blob — and the data generator never writes to that table, so extending the data cannot create
+history either. The key stays because it costs nothing.
 
-### Out of Scope
+Two dimensions do change: **`Application.People` and `Sales.Customers`**, on a minority of rows
+each. So SCD2 has a real subject, just not the product dimension. Building it needs the two
+`*_Archive` tables in the extraction contract first, which bumps `schema_version` and requires a
+fresh snapshot.
 
-- Real-time data ingestion
-- Advanced data science/ML capabilities
-- Production-grade orchestration and monitoring
+## What comes next
 
-## 🚀 Current Status & Known Limitations
+In order, because each depends on the one before.
 
-**Phase 1: Sales Analytics** Complete
+1. **Supply-chain facts** — purchasing, inventory movement, order fulfilment. The extraction already
+   pulls 21 tables rather than the 15 the sales star needs; the six spare ones are staged for this.
+2. **Tests and documentation on the staging layer** — the largest remaining gap in the dbt project.
+3. **SCD Type 2**, on a dimension that changes, once the archive tables are in the contract.
 
-### What's Working
+Not planned: real-time ingestion, ML, production orchestration.
 
-- ✅ Sales analytics capability
-- ✅ Sub-5-second dashboard queries
-- ✅ 100% data accuracy (validated against source)
-- ✅ Business users creating their own Looker Studio reports
+## Risks
 
-### Current Limitations
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Source system changes | Breaking pipeline | The manifest pins column types and engine version; a rebuild that disagrees fails rather than drifting |
+| Documentation drifts from code | Loss of trust | Every claim carries its command; a claim that cannot be run gets deleted |
+| Data quality issues | Incorrect analytics | 44 tests, each shown to fail before it was trusted |
+| Silent non-determinism | Unreproducible results | `make compare` builds twice and names the column that differs |
+| Scope creep | Delayed delivery | One business process at a time |
 
-- ⚠️ **Manual data loading**: CSV export/import (automation in progress)
-- ⚠️ **Single business process**: Sales only (purchases planned Q2)
-- ⚠️ **No change tracking**: Type 0 dimensions (overwrite on change)
-- ⚠️ **Limited testing**: Basic validation only (comprehensive tests planned)
+## Extension path
 
-### Technical Debt
-
-- Refactor staging layer for consistency
-- Implement data quality framework (Great Expectations or dbt tests)
-- Add incremental strategies to large fact tables
-- Document troubleshooting procedures
-
-## 🗺️ Future Roadmap
-
-### Phase 2: Infrastructure Automation (Near)
-
-- **Automated ingestion**: Complete dlt pipeline for incremental loads from SQL Server
-- **Data quality**: Implement dbt testing framework (uniqueness, not-null, referential integrity)
-- **Incremental strategies**: Optimize dbt models for performance
-
-### Phase 3: Business Expansion (Medium)
-
-- **Purchase Order analytics**: Procurement metrics and supplier performance
-- **Inventory management**: Stock movements, turnover, and valuation
-- **Orchestration**: Airflow/Prefect for scheduled runs and dependency management
-- **Performance optimization**: BigQuery partitioning, clustering, query tuning
-
-### Phase 4: Advanced Capabilities (Long)
-
-- **Customer intelligence**: Lifetime value, segmentation, churn prediction
-- **Historical tracking**: SCD Type 2 for dimension changes over time
-- **Data governance**: Cataloging, access controls, retention policies
-- **Advanced visualization**: Interactive dashboards with drill-down capabilities
-- **Documentation automation**: dbt docs site with lineage visualization
-
-### Risks & Mitigation
-
-| Risk                             | Impact              | Mitigation                                      |
-| -------------------------------- | ------------------- | ----------------------------------------------- |
-| **Source system changes**  | Breaking pipeline   | Version control, schema validation              |
-| **BigQuery cost overruns** | Budget exceeded     | Query optimization, partitioning                |
-| **Data quality issues**    | Incorrect analytics | Automated testing framework                     |
-| **Scope creep**            | Delayed delivery    | Strict phase boundaries, backlog prioritization |
-
-## 🔌 Extension Path
-
-The architecture is designed for extensibility. Adding new business processes follows a repeatable pattern.
-
-### Future Business Processes
-
-The architecture is designed to support additional business processes with minimal rework. Each new process follows the same pattern: **source → staging → analytics → marts**
-
-**Potential Extensions:**
-
-- **Purchase Order analytics**: Procurement metrics, supplier performance
-- **Inventory management**: Stock movements, turnover, valuation
-- **Customer intelligence**: Lifetime value, segmentation, churn prediction
-
-**New Dimensions (as needed):**
-
-- Dim tables for procurement analytics
-- Dim tables for inventory location analysis
-- Additional conformed dimensions shared across business processes
-
----
+Each new business process follows the same pattern: **source → staging → analytics → marts**.
+Candidates: purchase order analytics (procurement, supplier performance), inventory management
+(movements, turnover, valuation), customer intelligence (lifetime value, segmentation).

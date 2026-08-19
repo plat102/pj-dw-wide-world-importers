@@ -1,0 +1,366 @@
+# Tables in the Parquet snapshot. Columns are named, not `*`, so the schema is deliberate and
+# computed columns survive. Editing this file changes the contract -- bump schema_version.
+
+schema_version: 1
+
+tables:
+  - source: Application.Cities
+    output: application__cities
+    columns:
+      - CityID
+      - CityName
+      - StateProvinceID
+      - LatestRecordedPopulation
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Application.Countries
+    output: application__countries
+    columns:
+      - CountryID
+      - CountryName
+      - FormalName
+      - IsoAlpha3Code
+      - IsoNumericCode
+      - CountryType
+      - LatestRecordedPopulation
+      - Continent
+      - Region
+      - Subregion
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Application.DeliveryMethods
+    output: application__delivery_methods
+    columns:
+      - DeliveryMethodID
+      - DeliveryMethodName
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Application.People
+    output: application__people
+    columns:
+      - PersonID
+      - FullName
+      - PreferredName
+      - SearchName
+      - IsPermittedToLogon
+      - LogonName
+      - IsExternalLogonProvider
+      - IsSystemUser
+      - IsEmployee
+      - IsSalesperson
+      - UserPreferences
+      - PhoneNumber
+      - FaxNumber
+      - EmailAddress
+      - CustomFields
+      - OtherLanguages
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Application.StateProvinces
+    output: application__state_provinces
+    columns:
+      - StateProvinceID
+      - StateProvinceCode
+      - StateProvinceName
+      - CountryID
+      - SalesTerritory
+      - LatestRecordedPopulation
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Application.TransactionTypes
+    output: application__transaction_types
+    columns:
+      - TransactionTypeID
+      - TransactionTypeName
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Purchasing.PurchaseOrderLines
+    output: purchasing__purchase_order_lines
+    columns:
+      - PurchaseOrderLineID
+      - PurchaseOrderID
+      - StockItemID
+      - OrderedOuters
+      - Description
+      - ReceivedOuters
+      - PackageTypeID
+      - ExpectedUnitPricePerOuter
+      - LastReceiptDate
+      - IsOrderLineFinalized
+      - LastEditedBy
+      - LastEditedWhen
+
+  - source: Purchasing.PurchaseOrders
+    output: purchasing__purchase_orders
+    columns:
+      - PurchaseOrderID
+      - SupplierID
+      - OrderDate
+      - DeliveryMethodID
+      - ContactPersonID
+      - ExpectedDeliveryDate
+      - SupplierReference
+      - IsOrderFinalized
+      - Comments
+      - InternalComments
+      - LastEditedBy
+      - LastEditedWhen
+
+  - source: Purchasing.SupplierCategories
+    output: purchasing__supplier_categories
+    columns:
+      - SupplierCategoryID
+      - SupplierCategoryName
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Purchasing.Suppliers
+    output: purchasing__suppliers
+    columns:
+      - SupplierID
+      - SupplierName
+      - SupplierCategoryID
+      - PrimaryContactPersonID
+      - AlternateContactPersonID
+      - DeliveryMethodID
+      - DeliveryCityID
+      - PostalCityID
+      - SupplierReference
+      - BankAccountName
+      - BankAccountBranch
+      - BankAccountCode
+      - BankAccountNumber
+      - BankInternationalCode
+      - PaymentDays
+      - InternalComments
+      - PhoneNumber
+      - FaxNumber
+      - WebsiteURL
+      - DeliveryAddressLine1
+      - DeliveryAddressLine2
+      - DeliveryPostalCode
+      - PostalAddressLine1
+      - PostalAddressLine2
+      - PostalPostalCode
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Sales.BuyingGroups
+    output: sales__buying_groups
+    columns:
+      - BuyingGroupID
+      - BuyingGroupName
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Sales.CustomerCategories
+    output: sales__customer_categories
+    columns:
+      - CustomerCategoryID
+      - CustomerCategoryName
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Sales.Customers
+    output: sales__customers
+    columns:
+      - CustomerID
+      - CustomerName
+      - BillToCustomerID
+      - CustomerCategoryID
+      - BuyingGroupID
+      - PrimaryContactPersonID
+      - AlternateContactPersonID
+      - DeliveryMethodID
+      - DeliveryCityID
+      - PostalCityID
+      - CreditLimit
+      - AccountOpenedDate
+      - StandardDiscountPercentage
+      - IsStatementSent
+      - IsOnCreditHold
+      - PaymentDays
+      - PhoneNumber
+      - FaxNumber
+      - DeliveryRun
+      - RunPosition
+      - WebsiteURL
+      - DeliveryAddressLine1
+      - DeliveryAddressLine2
+      - DeliveryPostalCode
+      - PostalAddressLine1
+      - PostalAddressLine2
+      - PostalPostalCode
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Sales.Invoices
+    output: sales__invoices
+    columns:
+      - InvoiceID
+      - CustomerID
+      - BillToCustomerID
+      - OrderID
+      - DeliveryMethodID
+      - ContactPersonID
+      - AccountsPersonID
+      - SalespersonPersonID
+      - PackedByPersonID
+      - InvoiceDate
+      - CustomerPurchaseOrderNumber
+      - IsCreditNote
+      - CreditNoteReason
+      - Comments
+      - DeliveryInstructions
+      - InternalComments
+      - TotalDryItems
+      - TotalChillerItems
+      - DeliveryRun
+      - RunPosition
+      - ReturnedDeliveryData
+      - ConfirmedDeliveryTime
+      - ConfirmedReceivedBy
+      - LastEditedBy
+      - LastEditedWhen
+
+  - source: Sales.OrderLines
+    output: sales__order_lines
+    columns:
+      - OrderLineID
+      - OrderID
+      - StockItemID
+      - Description
+      - PackageTypeID
+      - Quantity
+      - UnitPrice
+      - TaxRate
+      - PickedQuantity
+      - PickingCompletedWhen
+      - LastEditedBy
+      - LastEditedWhen
+
+  - source: Sales.Orders
+    output: sales__orders
+    columns:
+      - OrderID
+      - CustomerID
+      - SalespersonPersonID
+      - PickedByPersonID
+      - ContactPersonID
+      - BackorderOrderID
+      - OrderDate
+      - ExpectedDeliveryDate
+      - CustomerPurchaseOrderNumber
+      - IsUndersupplyBackordered
+      - Comments
+      - DeliveryInstructions
+      - InternalComments
+      - PickingCompletedWhen
+      - LastEditedBy
+      - LastEditedWhen
+
+  - source: Warehouse.Colors
+    output: warehouse__colors
+    columns:
+      - ColorID
+      - ColorName
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Warehouse.PackageTypes
+    output: warehouse__package_types
+    columns:
+      - PackageTypeID
+      - PackageTypeName
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Warehouse.StockItems
+    output: warehouse__stock_items
+    columns:
+      - StockItemID
+      - StockItemName
+      - SupplierID
+      - ColorID
+      - UnitPackageID
+      - OuterPackageID
+      - Brand
+      - Size
+      - LeadTimeDays
+      - QuantityPerOuter
+      - IsChillerStock
+      - Barcode
+      - TaxRate
+      - UnitPrice
+      - RecommendedRetailPrice
+      - TypicalWeightPerUnit
+      - MarketingComments
+      - InternalComments
+      - CustomFields
+      - Tags
+      - SearchDetails
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Warehouse.StockItems_Archive
+    output: warehouse__stock_items_archive
+    columns:
+      - StockItemID
+      - StockItemName
+      - SupplierID
+      - ColorID
+      - UnitPackageID
+      - OuterPackageID
+      - Brand
+      - Size
+      - LeadTimeDays
+      - QuantityPerOuter
+      - IsChillerStock
+      - Barcode
+      - TaxRate
+      - UnitPrice
+      - RecommendedRetailPrice
+      - TypicalWeightPerUnit
+      - MarketingComments
+      - InternalComments
+      - CustomFields
+      - Tags
+      - SearchDetails
+      - LastEditedBy
+      - ValidFrom
+      - ValidTo
+
+  - source: Warehouse.StockItemTransactions
+    output: warehouse__stock_item_transactions
+    columns:
+      - StockItemTransactionID
+      - StockItemID
+      - TransactionTypeID
+      - CustomerID
+      - InvoiceID
+      - SupplierID
+      - PurchaseOrderID
+      - TransactionOccurredWhen
+      - Quantity
+      - LastEditedBy
+      - LastEditedWhen
