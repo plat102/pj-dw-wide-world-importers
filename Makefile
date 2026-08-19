@@ -11,7 +11,7 @@ DBT := uv run dbt
 # Read from the live source in one snapshot-isolation transaction: read-only SELECT is enough.
 SOURCE_DB := WideWorldImporters
 
-.PHONY: up down clean_storage seed_bronze seed_bronze_empty install deps parse build extract demo_fixture manifest sources sources_check verify compare shape compact compact_dry
+.PHONY: up down clean_storage seed_bronze seed_bronze_empty install deps parse build extract demo demo_fixture manifest sources sources_check verify compare shape compact compact_dry
 
 # --- storage layer ----------------------------------------------------------------------
 # Credentials come from .env; an unset one stops the stack rather than guessing a value.
@@ -65,6 +65,11 @@ extract:
 
 manifest:
 	uv run python -m scripts.generate_manifest
+
+# One command from a fresh clone to a queryable star schema, with no source database. Needs git,
+# make, uv and a container runtime -- nothing else, and nothing filled in by hand.
+demo:
+	uv run python -m scripts.demo
 
 # The reduced fixture a fresh clone builds on: real rows, real checksums, ~2.4 MB. Derived from the
 # snapshot in data/raw/, so this needs a machine that has run the extraction -- unlike `make demo`,
