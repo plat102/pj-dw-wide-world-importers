@@ -22,7 +22,7 @@ logs/*
 
 wide_world_importers_dw/profiles*.yml
 
-package-lock.yml
+# package-lock.yml is tracked on purpose: it is what pins dbt_utils across machines.
 
 
 *.env
