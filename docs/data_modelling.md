@@ -10,8 +10,7 @@ Document the dimensional model design - business requirements, star schema, and 
 
 Build a dimensional data warehouse to support analytics for Wide World Importers.
 
-**Current Implementation**: Sales Order analytics
-**Future Scope**: Purchase Orders, Inventory Management, Customer Intelligence
+**Current Implementation**: Sales Order analytics **Future Scope**: Purchase Orders, Inventory Management, Customer Intelligence
 
 ### Key Metrics
 
@@ -124,7 +123,5 @@ warehouse.PackageTypes  ──>  stg_warehouse_package_ty ───────�
 (Generated)                                            ────────────────────── > dim_date
 ```
 
-`int_city_flattened` is the only intermediate model: it joins city, state/province and country so
-`dim_customer` can resolve an address without repeating a three-way join. It is reachable from
-`dim_customer` alone, which is why it is one model rather than a layer.
+`int_city_flattened` is the only intermediate model: it joins city, state/province and country so `dim_customer` can resolve an address without repeating a three-way join. It is reachable from `dim_customer` alone, which is why it is one model rather than a layer.
 
