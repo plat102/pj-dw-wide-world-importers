@@ -1,5 +1,5 @@
 .vscode/*
-!.vscode/settings.json
+# settings.json stays ignored: the Python extension rewrites it with machine-local env state.
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json

@@ -65,8 +65,7 @@ Naming conventions for tables and columns in the warehouse
 
 ### Schemas
 
-The warehouse is a DuckLake lakehouse — Parquet on the object store, catalog in Postgres — and
-the layers are schemas inside its one catalog.
+The warehouse is a DuckLake lakehouse — Parquet on the object store, catalog in Postgres — and the layers are schemas inside its one catalog.
 
 | Schema      | Purpose                                       |
 | ----------- | --------------------------------------------- |
@@ -75,8 +74,7 @@ the layers are schemas inside its one catalog.
 | `main_dwh`  | Dimensional models                            |
 | `main_mart` | Business-ready denormalised tables            |
 
-`wwi_raw` / `wwi_stg` / `wwi_dwh` / `wwi_mart` were the BigQuery dataset names. That build is
-frozen; these are not the names in use.
+`wwi_raw` / `wwi_stg` / `wwi_dwh` / `wwi_mart` were the BigQuery dataset names. That build is frozen; these are not the names in use.
 
 ## SQL Style Guide
 
@@ -97,8 +95,7 @@ select
 from dim_customer
 ```
 
-Leading commas earn their keep: commenting a column out of a wide `select` is a one-character edit
-and cannot leave a dangling comma behind, which matters when the widest model has 70 columns.
+Leading commas earn their keep: commenting a column out of a wide `select` is a one-character edit and cannot leave a dangling comma behind, which matters when the widest model has 70 columns.
 
 ### Joins
 
@@ -161,9 +158,7 @@ from high_value_customers
 
 ### Numbers in documentation and comments
 
-**Do not write a row count into a document, a model comment, or a YAML description.** It goes stale
-the moment the data span changes, in places nobody remembers to look, and competes with the
-warehouse as a source of truth.
+**Do not write a row count into a document, a model comment, or a YAML description.** It goes stale the moment the data span changes, in places nobody remembers to look, and competes with the warehouse as a source of truth.
 
 The line to hold:
 
@@ -173,8 +168,7 @@ The line to hold:
 | the **code** changes | column counts, model counts, "ten foreign keys" | Fine to write. A reviewer sees them move in the same diff |
 | never — it is a pinned expectation | the eight dates in `assert_dim_date_calendar` | Required. That is what the test *is* |
 
-Write "no stock item has ever had more than one distinct price", not "444 rows over 227 items with
-zero price changes". The first survives a bigger dataset.
+Write "no stock item has ever had more than one distinct price", not "444 rows over 227 items with zero price changes". The first survives a bigger dataset.
 
 Where a reader wants numbers, give the command:
 
@@ -182,18 +176,12 @@ Where a reader wants numbers, give the command:
 - `make verify` — the snapshot against the manifest's counts and checksums
 - `data/snapshots/manifest.json` — authoritative for source row counts, sizes and types
 
-This rule covers documentation describing the *present*. A dated measurement is a different thing
-and should carry its numbers — a stale number there is history, not a false claim.
+This rule covers documentation describing the *present*. A dated measurement is a different thing and should carry its numbers — a stale number there is history, not a false claim.
 
 ### Testing
 
 - Generic tests go in the `schema.yml` beside the models they cover, one per layer directory.
-- Every dimension key carries `unique` and `not_null`; every foreign key on the fact carries
-  `relationships`. That is a rule, not a target — a new key without both is incomplete.
-- Singular tests go in `tests/`, named `assert_<what_must_be_true>.sql`. Three exist:
-  `assert_dim_date_calendar`, `assert_staging_matches_manifest`, `assert_mart_keeps_fact_grain`.
-- **A test is not trusted until it has been seen to fail.** Break the thing it guards, watch it go
-  red, put it back. A test that has only ever been green says nothing about whether it works, and
-  in this project one negative test passed for the wrong reason until it was provoked properly.
-- The mart's column list is a contract (`contract: enforced`) — a test in a different shape, which
-  fails the build rather than a test run.
+- Every dimension key carries `unique` and `not_null`; every foreign key on the fact carries `relationships`. That is a rule, not a target — a new key without both is incomplete.
+- Singular tests go in `tests/`, named `assert_<what_must_be_true>.sql`. Three exist: `assert_dim_date_calendar`, `assert_staging_matches_manifest`, `assert_mart_keeps_fact_grain`.
+- **A test is not trusted until it has been seen to fail.** Break the thing it guards, watch it go red, put it back. A test that has only ever been green says nothing about whether it works, and in this project one negative test passed for the wrong reason until it was provoked properly.
+- The mart's column list is a contract (`contract: enforced`) — a test in a different shape, which fails the build rather than a test run.

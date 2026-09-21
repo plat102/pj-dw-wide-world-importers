@@ -1,15 +1,13 @@
 # Data Warehouse Catalog
 
-Every column below was read out of a built warehouse, not transcribed from a design. Types are
-DuckDB types. Reproduce with:
+Every column below was read out of a built warehouse, not transcribed from a design. Types are DuckDB types. Reproduce with:
 
 ```bash
 make up && make build
 make shape          # every relation with its row and column count
 ```
 
-For the column list, attach the lake from any DuckDB session -- the catalog and the store are all
-it takes, which is the point of keeping the warehouse there rather than in a local file:
+For the column list, attach the lake from any DuckDB session -- the catalog and the store are all it takes, which is the point of keeping the warehouse there rather than in a local file:
 
 ```sql
 select table_schema, table_name, column_name, data_type
@@ -21,9 +19,7 @@ Row counts are not in this file on purpose — see [Counts](#counts) at the end.
 
 ## Schemas
 
-The warehouse is a DuckLake lakehouse -- Parquet on the object store, catalog in Postgres --
-built by `dbt build`. Layers are schemas
-inside it, not separate datasets.
+The warehouse is a DuckLake lakehouse -- Parquet on the object store, catalog in Postgres -- built by `dbt build`. Layers are schemas inside it, not separate datasets.
 
 | Schema       | Layer        | Contents                                                        |
 | ------------ | ------------ | --------------------------------------------------------------- |
@@ -32,16 +28,13 @@ inside it, not separate datasets.
 | `main_dwh`   | Dimensional  | The star schema: dimensions, role-playing views, the fact       |
 | `main_mart`  | Mart         | One denormalised table for BI                                   |
 
-The BigQuery datasets `wwi_raw` / `wwi_stg` / `wwi_dwh` / `wwi_mart` were the earlier layout.
-They are frozen and are not what this catalog describes.
+The BigQuery datasets `wwi_raw` / `wwi_stg` / `wwi_dwh` / `wwi_mart` were the earlier layout. They are frozen and are not what this catalog describes.
 
 ## Fact table
 
 ### `fact_sales_order_line` — 20 columns
 
-One row per sales order line. **Grain**: `sales_order_line_key`, tested `unique` and `not_null`.
-Source: `Sales.OrderLines` joined to `Sales.Orders`, with `bill_to_customer_key` resolved from
-`Sales.Customers`.
+One row per sales order line. **Grain**: `sales_order_line_key`, tested `unique` and `not_null`. Source: `Sales.OrderLines` joined to `Sales.Orders`, with `bill_to_customer_key` resolved from `Sales.Customers`.
 
 | Column                                        | Type                     | Role     | Notes                                                    |
 | --------------------------------------------- | ------------------------ | -------- | -------------------------------------------------------- |
@@ -66,15 +59,13 @@ Source: `Sales.OrderLines` joined to `Sales.Orders`, with `bill_to_customer_key`
 | `is_undersupply_backordered`                  | BOOLEAN                  | flag     |                                                           |
 | `sales_order_line_processed_at`               | TIMESTAMP WITH TIME ZONE | metadata | The snapshot's timestamp, from the manifest — not a clock |
 
-Ten foreign keys carry `relationships` tests. `order_date_key` is `not_null`; the other three
-date keys are not, because a line that has not shipped has no delivery or picking date.
+Ten foreign keys carry `relationships` tests. `order_date_key` is `not_null`; the other three date keys are not, because a line that has not shipped has no delivery or picking date.
 
 ## Dimensions
 
 ### `dim_customer` — 33 columns
 
-**Grain**: one row per customer. **Type 0**: no history is tracked, and the snapshot carries only
-the current version of each row, so there is none to track.
+**Grain**: one row per customer. **Type 0**: no history is tracked, and the snapshot carries only the current version of each row, so there is none to track.
 
 | Column                               | Type          | Notes                                          |
 | ------------------------------------ | ------------- | ---------------------------------------------- |
@@ -114,8 +105,7 @@ the current version of each row, so there is none to track.
 
 ### `dim_stock_item` — 18 columns
 
-**Grain**: one row per stock item today. **Type 0**, with a surrogate key in place for a later
-Type 2 build.
+**Grain**: one row per stock item today. **Type 0**, with a surrogate key in place for a later Type 2 build.
 
 | Column                     | Type          | Notes                                                        |
 | -------------------------- | ------------- | ------------------------------------------------------------ |
@@ -138,16 +128,11 @@ Type 2 build.
 | `color_name`               | VARCHAR       | Nullable with `color_key`                                    |
 | `supplier_name`            | VARCHAR       |                                                              |
 
-`unit_price` has **no history in this data.** The source table is system-versioned and its archive
-is not empty, but **no stock item has ever had more than one distinct price** — the only column
-that ever changes is a JSON tag blob. The reason is structural rather than incidental: the data
-generator never writes to that table at all, so extending the data forward cannot create history
-either. The surrogate key is kept because it costs nothing, not because there is history to version.
+`unit_price` has **no history in this data.** The source table is system-versioned and its archive is not empty, but **no stock item has ever had more than one distinct price** — the only column that ever changes is a JSON tag blob. The reason is structural rather than incidental: the data generator never writes to that table at all, so extending the data forward cannot create history either. The surrogate key is kept because it costs nothing, not because there is history to version.
 
 ### `dim_person` — 8 columns
 
-**Grain**: one row per person. Covers system users, employees and salespeople in one dimension;
-the fact points at it three times, through the three role-playing views below.
+**Grain**: one row per person. Covers system users, employees and salespeople in one dimension; the fact points at it three times, through the three role-playing views below.
 
 | Column                 | Type    | Notes                |
 | ---------------------- | ------- | -------------------- |
@@ -169,9 +154,7 @@ the fact points at it three times, through the three role-playing views below.
 
 ### `dim_date` — 12 columns
 
-**Grain**: one row per day, 2000-01-01 to 2050-12-31. Generated, not sourced. Pinned by
-`tests/assert_dim_date_calendar.sql` over eight dates chosen at the three places the arithmetic
-is easiest to get wrong.
+**Grain**: one row per day, 2000-01-01 to 2050-12-31. Generated, not sourced. Pinned by `tests/assert_dim_date_calendar.sql` over eight dates chosen at the three places the arithmetic is easiest to get wrong.
 
 | Column           | Type    | Notes                                                              |
 | ---------------- | ------- | ------------------------------------------------------------------ |
@@ -192,25 +175,15 @@ is easiest to get wrong.
 
 ### `mart_sales_order_line` — 70 columns
 
-Same grain as the fact. Every column and its type is declared in
-`wide_world_importers_dw/models/marts/sales/schema.yml` under `contract: enforced`, which is the
-authoritative list — an upstream column that would change it fails the build rather than arriving
-here silently. It is not repeated in this file, because two copies of a 70-column list is how a
-catalog starts lying.
+Same grain as the fact. Every column and its type is declared in `wide_world_importers_dw/models/marts/sales/schema.yml` under `contract: enforced`, which is the authoritative list — an upstream column that would change it fails the build rather than arriving here silently. It is not repeated in this file, because two copies of a 70-column list is how a catalog starts lying.
 
-Shape, in order: 9 fact measures and degenerate dimensions, 28 `customer_*` attributes,
-`bill_to_customer_name`, 3 person names in their roles, 4 stock item attributes, 1 package type,
-then 24 date attributes — the full calendar for the order date and the expected delivery date,
-and `full_date` alone for the two picking-completed dates.
+Shape, in order: 9 fact measures and degenerate dimensions, 28 `customer_*` attributes, `bill_to_customer_name`, 3 person names in their roles, 4 stock item attributes, 1 package type, then 24 date attributes — the full calendar for the order date and the expected delivery date, and `full_date` alone for the two picking-completed dates.
 
 **No foreign key reaches the mart.** The attribute is already here, so a consumer never joins back.
 
 ## Counts
 
-**Row counts are deliberately absent from this file.** They change the moment the data span
-changes — extending the source forward is planned work — and a count copied into prose becomes a
-second source of truth that nobody remembers to update. Column counts stay, because those move only
-when someone edits a model, and the mart's are held by an enforced contract.
+**Row counts are deliberately absent from this file.** They change the moment the data span changes — extending the source forward is planned work — and a count copied into prose becomes a second source of truth that nobody remembers to update. Column counts stay, because those move only when someone edits a model, and the mart's are held by an enforced contract.
 
 For current numbers:
 
@@ -218,6 +191,4 @@ For current numbers:
 make shape
 ```
 
-`data/snapshots/manifest.json` is authoritative for **source** row counts, and
-`assert_staging_matches_manifest` fails the build if the warehouse disagrees with it. So the
-numbers are asserted, not just available.
+`data/snapshots/manifest.json` is authoritative for **source** row counts, and `assert_staging_matches_manifest` fails the build if the warehouse disagrees with it. So the numbers are asserted, not just available.

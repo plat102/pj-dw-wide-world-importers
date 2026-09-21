@@ -1,12 +1,8 @@
 # Project Roadmap
 
-**Type**: Learning project
-**Where it stands**: Sales Order star schema on a DuckLake lakehouse, over a checksummed Parquet
-snapshot on object storage, with CI on every pull request
-**Next**: supply-chain facts, then tests on the staging layer
+**Type**: Learning project **Where it stands**: Sales Order star schema on a DuckLake lakehouse, over a checksummed Parquet snapshot on object storage, with CI on every pull request **Next**: supply-chain facts, then tests on the staging layer
 
-> This file describes **state**, not numbered phases. Nothing in this repository numbers phases; it
-> says what is true instead.
+> This file describes **state**, not numbered phases. Nothing in this repository numbers phases; it says what is true instead.
 
 ## Business context
 
@@ -17,13 +13,11 @@ WWI runs on an OLTP database optimized for transactions:
 - No historical tracking, so no trend analysis
 - Business users wait days for custom reports
 
-**Objective**: a dimensional warehouse enabling self-service analytics for sales managers,
-operations and executives.
+**Objective**: a dimensional warehouse enabling self-service analytics for sales managers, operations and executives.
 
 ## Success criteria
 
-A ✅ means there is a command whose output shows it. Anything without one is 🚧, however confident
-it feels.
+A ✅ means there is a command whose output shows it. Anything without one is 🚧, however confident it feels.
 
 | | Criterion | Evidence |
 |---|---|---|
@@ -39,14 +33,11 @@ it feels.
 | 🚧 | **Automation** | CI builds and tests every pull request, but nothing runs on a schedule and no orchestrator owns the extraction |
 | ❌ | **Cost efficiency as a cloud property** | No longer applicable — the warehouse runs on containers this repository starts and throws away |
 
-Two extractions of one source agree on row counts and column sets but **not on bytes**: the source
-is read without `ORDER BY` and physical row order is not guaranteed. Measured 2026-08-18: 5 of 21
-tables came back reordered, same rows.
+Two extractions of one source agree on row counts and column sets but **not on bytes**: the source is read without `ORDER BY` and physical row order is not guaranteed. Measured 2026-08-18: 5 of 21 tables came back reordered, same rows.
 
 ## Scope
 
-**In**: Sales Order (processing, fulfillment, delivery), from the WWI OLTP database. dbt on DuckLake
-over a Parquet snapshot; the BigQuery build is a frozen exhibit.
+**In**: Sales Order (processing, fulfillment, delivery), from the WWI OLTP database. dbt on DuckLake over a Parquet snapshot; the BigQuery build is a frozen exhibit.
 
 **Out**: real-time ingestion, ML, production orchestration and monitoring.
 
@@ -79,26 +70,17 @@ SCD Type 2 was once listed as a deliverable and is **not built** — see [Change
 
 ### Change tracking
 
-**One position on SCD Type 2, and it is this one.** Every dimension is **Type 0**: a change
-overwrites.
+**One position on SCD Type 2, and it is this one.** Every dimension is **Type 0**: a change overwrites.
 
-`dim_stock_item` carries the only surrogate key, `stock_item_sk`, so a Type 2 build could later give
-one item several rows. It was introduced to version `unit_price` and that reason was wrong: **no
-stock item has ever had more than one distinct price** — the only column that changes is a JSON tag
-blob — and the data generator never writes to that table, so extending the data cannot create
-history either. The key stays because it costs nothing.
+`dim_stock_item` carries the only surrogate key, `stock_item_sk`, so a Type 2 build could later give one item several rows. It was introduced to version `unit_price` and that reason was wrong: **no stock item has ever had more than one distinct price** — the only column that changes is a JSON tag blob — and the data generator never writes to that table, so extending the data cannot create history either. The key stays because it costs nothing.
 
-Two dimensions do change: **`Application.People` and `Sales.Customers`**, on a minority of rows
-each. So SCD2 has a real subject, just not the product dimension. Building it needs the two
-`*_Archive` tables in the extraction contract first, which bumps `schema_version` and requires a
-fresh snapshot.
+Two dimensions do change: **`Application.People` and `Sales.Customers`**, on a minority of rows each. So SCD2 has a real subject, just not the product dimension. Building it needs the two `*_Archive` tables in the extraction contract first, which bumps `schema_version` and requires a fresh snapshot.
 
 ## What comes next
 
 In order, because each depends on the one before.
 
-1. **Supply-chain facts** — purchasing, inventory movement, order fulfilment. The extraction already
-   pulls 21 tables rather than the 15 the sales star needs; the six spare ones are staged for this.
+1. **Supply-chain facts** — purchasing, inventory movement, order fulfilment. The extraction already pulls 21 tables rather than the 15 the sales star needs; the six spare ones are staged for this.
 2. **Tests and documentation on the staging layer** — the largest remaining gap in the dbt project.
 3. **SCD Type 2**, on a dimension that changes, once the archive tables are in the contract.
 
@@ -116,6 +98,4 @@ Not planned: real-time ingestion, ML, production orchestration.
 
 ## Extension path
 
-Each new business process follows the same pattern: **source → staging → analytics → marts**.
-Candidates: purchase order analytics (procurement, supplier performance), inventory management
-(movements, turnover, valuation), customer intelligence (lifetime value, segmentation).
+Each new business process follows the same pattern: **source → staging → analytics → marts**. Candidates: purchase order analytics (procurement, supplier performance), inventory management (movements, turnover, valuation), customer intelligence (lifetime value, segmentation).
