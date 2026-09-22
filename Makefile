@@ -13,7 +13,7 @@ DBT_PROJECT = --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
 # Read-only SELECT on the source is enough; `extract` never writes to it.
 SOURCE_DB := WideWorldImporters
 
-.PHONY: up down clean_storage install deps parse build extract sources sources_check verify compare shape lint format typecheck test check
+.PHONY: up down clean_storage install deps parse build extract compare shape lint format typecheck test check
 
 # --- storage layer ----------------------------------------------------------------------
 # Credentials come from .env; an unset one stops the stack rather than guessing a value.
@@ -26,14 +26,14 @@ up:
 down:
 	docker compose down
 
-# Deletes the bronze layer and the catalog. Separate from `down`, which keeps them.
+# Deletes the lake and its catalog, bronze included. Separate from `down`, which keeps them.
 clean_storage:
 	docker compose down -v
 
 # --- checks -----------------------------------------------------------------------------
 # `check` is what CI runs and what to run before pushing. None of it needs Docker.
 
-check: lint typecheck test sources_check
+check: lint typecheck test
 
 lint:
 	uv run ruff check .
@@ -64,29 +64,16 @@ parse:
 build:
 	$(DBT) build $(DBT_PROJECT)
 
-# dlt writes straight to the store, so there is nothing to upload -- only sources.yml to
-# refresh and an independent read-back to verify.
+# dlt writes into the lake itself, so there is nothing to upload and nothing to project: the
+# bronze schema is the record of what landed.
 extract:
 	uv run wwi extract --source-db $(SOURCE_DB)
-	$(MAKE) sources
-	uv run wwi verify
-
-# sources.yml is a projection of the manifest. Regenerate after every extraction.
-sources:
-	uv run wwi sources
-
-# Fails if sources.yml has drifted from the manifest. For CI and for pre-push.
-sources_check:
-	uv run wwi sources --check
-
-verify:
-	uv run wwi verify
 
 # Every relation with its row and column count. Exists so no document carries a row count.
 shape:
 	uv run wwi shape
 
-# Two builds of one snapshot must be identical; names the column when not. Split out from
+# Two builds of one bronze load must be identical; names the column when not. Split out from
 # `make test` because it costs two full builds.
 compare:
 	uv run pytest tests/integration/test_build_determinism.py

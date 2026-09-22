@@ -2594,7 +2594,7 @@ dev = [
 requires-dist = [
     { name = "dbt-core", specifier = "==1.12.2" },
     { name = "dbt-duckdb" },
-    { name = "dlt", extras = ["sql-database"], specifier = ">=1.7.0" },
+    { name = "dlt", extras = ["sql-database"], specifier = ">=1.30" },
     { name = "duckdb" },
     { name = "pyarrow", specifier = ">=15" },
     { name = "pymssql", specifier = ">=2.3" },

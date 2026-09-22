@@ -27,11 +27,10 @@ wide_world_importers_dw/profiles*.yml
 
 *.env
 */secrets/*
-# The Parquet snapshot is published output, never repository content. Only the manifest that
-# describes it is tracked -- see data/snapshots/manifest.json. `make extract` writes the snapshot
-# straight to the object store, so nothing lands here any more; the rule stays so an older
-# working copy cannot commit one by accident.
-data/raw/
+# Extracted data is warehouse content, never repository content. `make extract` loads it into
+# the lake, so nothing lands here any more; the rule stays so an older working copy cannot commit
+# one by accident.
+data/
 
 # Nothing in the build produces this any more; the read-only DuckDB client recreates it on
 # connect, so it stays ignored rather than tracked.

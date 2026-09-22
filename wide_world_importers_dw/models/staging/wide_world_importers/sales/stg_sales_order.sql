@@ -13,5 +13,5 @@ select
     , expected_delivery_date as expected_delivery_date_key
     , is_undersupply_backordered
     , picking_completed_when as picking_completed_date_key
-    , {{ snapshot_processed_at() }} as processed_at
+    , {{ processed_at() }} as processed_at
 from raw

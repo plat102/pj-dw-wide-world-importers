@@ -1,45 +1,53 @@
-"""Extract the declared tables into the bronze layer: one dlt pipeline, one run.
+"""Extract the declared tables into the lake's bronze schema: one dlt pipeline, one run.
 
-dlt's filesystem destination writes each table straight to
-`s3://<bucket>/bronze/<snapshot-id>/<table>/`, and the manifest is then written from what actually
-landed there, read back through the S3 API. Nothing is staged locally.
+dlt attaches the same DuckLake the warehouse is built in -- same catalog, same metadata schema,
+same data path -- and loads each table into the `bronze` schema. Nothing is staged locally, and
+nothing describes what landed except the lake itself.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 import dlt
 import sqlalchemy as sa
+from dlt.common.configuration.specs import AwsCredentials
+from dlt.common.storages.configuration import FilesystemConfiguration
+from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
 from dlt.sources.sql_database import sql_table
 
 from config import settings
-from connectors import mssql, s3
-from contracts import manifest as manifest_contract
-from contracts import tables as tables_contract
-from contracts.paths import bronze_prefix, snapshot_id
+from connectors import ducklake, mssql
+from ingestion import tables as tables_contract
 from utils.exceptions import ToolingError
 
-PIPELINE_NAME = "wwi_snapshot"
-# What `replace` requires: {table_name} first, with a separator after it.
-LAYOUT = "{table_name}/{load_id}.{file_id}.{ext}"
-# bronze/ is the bucket_url; the snapshot id is the dataset. dlt normalises dataset_name unless
-# that is switched off, which would lowercase the id and stop the prefix matching the manifest.
-BRONZE_ROOT = "bronze"
+PIPELINE_NAME = "wwi_bronze"
 
 
 def destination() -> Any:
-    return dlt.destinations.filesystem(
-        bucket_url=f"s3://{settings.bucket()}/{BRONZE_ROOT}",
-        layout=LAYOUT,
-        enable_dataset_name_normalization=False,
-        credentials={
-            "aws_access_key_id": settings.require("S3_ACCESS_KEY"),
-            "aws_secret_access_key": settings.require("S3_SECRET_KEY"),
-            "endpoint_url": settings.endpoint_url(),
-        },
+    """The lake the warehouse already lives in, as dlt's ducklake destination.
+
+    Catalog, metadata schema and data path all have to match the ATTACH the dbt profile renders,
+    or this writes a second lake into the same Postgres instead of the one dbt reads.
+    """
+    return dlt.destinations.ducklake(
+        credentials=DuckLakeCredentials(
+            ducklake_name=ducklake.CATALOG,
+            metadata_schema=settings.METADATA_SCHEMA,
+            # dlt parses a URL; duckdb's own ATTACH takes the libpq form. Same database.
+            catalog=settings.catalog_url(),
+            storage=FilesystemConfiguration(
+                bucket_url=settings.data_path(),
+                credentials=AwsCredentials(
+                    aws_access_key_id=settings.require("S3_ACCESS_KEY"),
+                    aws_secret_access_key=settings.require("S3_SECRET_KEY"),
+                    endpoint_url=settings.endpoint_url(),
+                    # Named because duckdb writes the secret verbatim: unset arrives as 'None'.
+                    region_name="us-east-1",
+                    s3_url_style="path",
+                ),
+            ),
+        )
     )
 
 
@@ -66,56 +74,44 @@ def resources(engine: sa.Engine, specs: list[dict]) -> list[Any]:
     return built
 
 
-def extract(source_db: str, output: Path) -> str:
-    """Load the source into bronze and write the manifest describing what landed."""
-    config = tables_contract.load()
-    specs = config["tables"]
+def extract(source_db: str) -> str:
+    """Load the source into the lake's bronze schema and report what landed."""
+    specs = tables_contract.load()["tables"]
 
     engine = mssql.engine(mssql.connection_string(source_db))
-    facts = mssql.inspect_source(engine, source_db)
+    version = mssql.inspect_source(engine, source_db)
     mssql.check_declared_columns(engine, specs)
-    expected_rows = mssql.count_source_rows(engine, specs)
+    expected = mssql.count_source_rows(engine, specs)
 
-    timestamp = datetime.now(UTC).isoformat(timespec="seconds")
-    identifier = snapshot_id(timestamp)
+    # The pyarrow backend adds neither bookkeeping column by default. The row id stays off: it is
+    # random per row, so two extractions of one source would never agree again.
+    dlt.config["normalize.parquet_normalizer.add_dlt_load_id"] = True
 
     pipeline = dlt.pipeline(
         pipeline_name=PIPELINE_NAME,
         destination=destination(),
-        dataset_name=identifier,
+        dataset_name=settings.BRONZE_SCHEMA,
     )
     print(pipeline.run(resources(engine, specs), loader_file_format="parquet"))
 
-    prefix = bronze_prefix(identifier)
-    tables = manifest_contract.from_store(
-        s3.client(), settings.bucket(), prefix, [e["output"] for e in specs]
-    )
+    # Read back through the attach the dbt build uses, not dlt's own: if the two ever stop naming
+    # one lake, it surfaces here rather than three models into a build.
+    conn = ducklake.connect()
+    landed = ducklake.row_counts(conn, settings.BRONZE_SCHEMA, [e["output"] for e in specs])
+    snapshot = ducklake.latest_snapshot(conn)
+    conn.close()
+
     # Row-level security filters without raising, and usually only part of a table -- every
-    # downstream check would then agree with itself on a short snapshot.
-    drift = {
-        n: (expected_rows[n], t["row_count"])
-        for n, t in tables.items()
-        if expected_rows[n] != t["row_count"]
-    }
+    # downstream check would then agree with itself on a short load.
+    drift = {n: (expected[n], landed[n]) for n in landed if expected[n] != landed[n]}
     if drift:
         detail = ", ".join(
             f"{n}: source {a:,} vs landed {b:,}" for n, (a, b) in sorted(drift.items())
         )
         raise ToolingError(f"row counts do not match the source: {detail}")
 
-    manifest = {
-        "schema_version": config["schema_version"],
-        "snapshot_timestamp": timestamp,
-        "snapshot_id": identifier,
-        **facts,
-        **manifest_contract.summarise(tables),
-        "tables": tables,
-    }
-    manifest_contract.dump(manifest, output)
-
-    mb = manifest["total_size_bytes"] / 1048576
     return (
-        f"s3://{settings.bucket()}/{prefix}/: {len(tables)} tables, "
-        f"{manifest['total_row_count']:,} rows, {mb:.1f} MB\n"
-        f"{output}: written"
+        f"{ducklake.CATALOG}.{settings.BRONZE_SCHEMA}: {len(landed)} tables, "
+        f"{sum(landed.values()):,} rows, lake snapshot {snapshot}\n"
+        f"source {version}"
     )
