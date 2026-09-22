@@ -6,7 +6,7 @@ consumer that only learns "it failed" cannot tell a truncated upload from a move
 
 from __future__ import annotations
 
-from typing import Any, BinaryIO
+from typing import BinaryIO
 
 import pyarrow.parquet as pq
 
@@ -22,49 +22,60 @@ class StoreSource:
 
     def __init__(self, manifest: dict) -> None:
         self.bucket = settings.bucket()
-        self.prefix = bronze_prefix(manifest)
+        self.prefix = bronze_prefix(manifest["snapshot_id"])
         self.label = f"s3://{self.bucket}/{self.prefix}/"
         self.fs = s3.client()
 
-    def _key(self, file_name: str) -> str:
-        return f"{self.bucket}/{self.prefix}/{file_name}"
+    def _key(self, key: str) -> str:
+        return f"{self.bucket}/{self.prefix}/{key}"
 
-    def exists(self, file_name: str) -> bool:
-        return bool(self.fs.exists(self._key(file_name)))
+    def exists(self, key: str) -> bool:
+        return bool(self.fs.exists(self._key(key)))
 
-    def open(self, file_name: str) -> BinaryIO:
-        return self.fs.open(self._key(file_name), "rb")
+    def open(self, key: str) -> BinaryIO:
+        return self.fs.open(self._key(key), "rb")
 
     def list_parquet(self) -> set[str]:
         found = self.fs.find(f"{self.bucket}/{self.prefix}/")
-        return {key.rsplit("/", 1)[-1] for key in found if key.endswith(".parquet")}
+        return {key.split(f"{self.prefix}/", 1)[-1] for key in found if key.endswith(".parquet")}
 
 
-def check_table(source: Any, spec: dict) -> str | None:
-    """One table's four checks. Returns the first failure, or None when it passes."""
-    if not source.exists(spec["file"]):
-        return f"missing file: {spec['file']} (the snapshot is incomplete)"
+def check_table(source: StoreSource, table: str, entry: dict) -> list[str]:
+    """One table's checks across however many files it was written as."""
+    found: list[str] = []
+    rows = 0
+    columns: dict[str, str] = {}
 
-    with source.open(spec["file"]) as handle:
-        digest = sha256_stream(handle)
-    if digest != spec["sha256"]:
-        return (
-            f"checksum: {spec['file']} changed after publication "
-            f"(expected {spec['sha256'][:12]}..., got {digest[:12]}...)"
-        )
+    for spec in entry["files"]:
+        key = spec["file"]
+        if not source.exists(key):
+            found.append(f"missing file: {key} (the snapshot is incomplete)")
+            continue
 
-    with source.open(spec["file"]) as handle:
-        parquet = pq.ParquetFile(handle)
-        arrow_schema = parquet.schema_arrow
-        rows = parquet.metadata.num_rows
-    if rows != spec["row_count"]:
-        return f"row count: {spec['file']} has {rows:,} rows, manifest says {spec['row_count']:,}"
+        with source.open(key) as handle:
+            digest = sha256_stream(handle)
+        if digest != spec["sha256"]:
+            found.append(
+                f"checksum: {key} changed after publication "
+                f"(expected {spec['sha256'][:12]}..., got {digest[:12]}...)"
+            )
+            continue
 
-    expected = spec["columns"]
-    actual = {field.name: str(field.type) for field in arrow_schema}
-    gone = sorted(set(expected) - set(actual))
-    added = sorted(set(actual) - set(expected))
-    retyped = sorted(c for c in set(actual) & set(expected) if actual[c] != expected[c])
+        with source.open(key) as handle:
+            parquet = pq.ParquetFile(handle)
+            columns = {field.name: str(field.type) for field in parquet.schema_arrow}
+            rows += parquet.metadata.num_rows
+
+    if found:
+        return found
+
+    if rows != entry["row_count"]:
+        found.append(f"row count: {table} has {rows:,} rows, manifest says {entry['row_count']:,}")
+
+    expected = entry["columns"]
+    gone = sorted(set(expected) - set(columns))
+    added = sorted(set(columns) - set(expected))
+    retyped = sorted(c for c in set(columns) & set(expected) if columns[c] != expected[c])
     if gone or added or retyped:
         parts = []
         if gone:
@@ -72,12 +83,13 @@ def check_table(source: Any, spec: dict) -> str | None:
         if added:
             parts.append(f"unexpected {added}")
         if retyped:
-            parts.append("retyped " + ", ".join(f"{c} {expected[c]}->{actual[c]}" for c in retyped))
-        return f"column schema: {spec['file']} " + "; ".join(parts)
-    return None
+            moved = ", ".join(f"{c} {expected[c]}->{columns[c]}" for c in retyped)
+            parts.append(f"retyped {moved}")
+        found.append(f"column schema: {table} " + "; ".join(parts))
+    return found
 
 
-def failures(manifest: dict, source: Any) -> list[str]:
+def failures(manifest: dict, source: StoreSource) -> list[str]:
     """Every check, collected rather than short-circuited: one run should name every problem."""
     found: list[str] = []
 
@@ -88,17 +100,17 @@ def failures(manifest: dict, source: Any) -> list[str]:
             f"expects {expect}; the source schema moved"
         )
 
-    for spec in manifest["tables"].values():
-        failure = check_table(source, spec)
-        if failure:
-            found.append(failure)
+    declared: set[str] = set()
+    for table, entry in sorted(manifest["tables"].items()):
+        found.extend(check_table(source, table, entry))
+        declared.update(spec["file"] for spec in entry["files"])
 
-    extra = source.list_parquet() - {s["file"] for s in manifest["tables"].values()}
+    extra = source.list_parquet() - declared
     found.extend(f"unexpected file: {name} is not in the manifest" for name in sorted(extra))
     return found
 
 
-def summary(manifest: dict, source: Any) -> str:
+def summary(manifest: dict, source: StoreSource) -> str:
     return (
         f"source: {source.label}\n"
         f"OK {manifest['table_count']} tables, {manifest['total_row_count']:,} rows, "

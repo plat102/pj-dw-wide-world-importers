@@ -8,9 +8,9 @@ sources:
       sizes and checksums live in data/snapshots/manifest.json, which is authoritative; they are
       not repeated here.
     meta:
-      # s3:// in every environment; only the endpoint and credentials differ, and those live in
-      # the dbt profile. Nothing here names the store behind the API.
-      external_location: "read_parquet('s3://{{ env_var('S3_BUCKET', 'wwi') }}/bronze/{{ env_var('SNAPSHOT_ID', '20260818T125822Z') }}/{name}.parquet')"
+      # The endpoint and credentials live in the dbt profile; nothing here names the store.
+      # One glob per table: dlt decides how many files a table takes, the folder is the table.
+      external_location: "read_parquet('s3://{{ env_var('S3_BUCKET', 'wwi') }}/bronze/{{ env_var('SNAPSHOT_ID', '20260818T125822Z') }}/{name}/*.parquet')"
     tables:
       - name: application__cities
         columns:

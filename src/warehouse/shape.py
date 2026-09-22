@@ -1,7 +1,6 @@
 """Every relation in the warehouse with its row and column count.
 
-This exists so no document has to carry a row count. `docs/naming_convention.md` routes every
-"how many rows" question here, which is why the command name outlives any module rename.
+This exists so no document has to carry a row count.
 """
 
 from __future__ import annotations

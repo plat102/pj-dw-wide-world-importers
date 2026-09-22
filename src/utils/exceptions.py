@@ -1,10 +1,4 @@
-"""One exception type for every predictable failure in this project.
-
-Library code raises; `cli/` catches once, prints, and returns a non-zero exit code. Before this
-there were four conventions -- `sys.exit` from inside a library, two different accumulate-and-return
-shapes, and a bare RuntimeError -- and the `sys.exit` one made every module untestable without a
-subprocess, because importing it could kill the interpreter.
-"""
+"""One exception type for every predictable failure: library code raises, `cli/` catches once."""
 
 from __future__ import annotations
 

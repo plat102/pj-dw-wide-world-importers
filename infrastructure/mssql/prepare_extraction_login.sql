@@ -48,11 +48,6 @@ GO
 GRANT VIEW DEFINITION TO [$(EXTRACT_LOGIN)];
 GO
 
--- Required, not optional: the extraction reads every table in one snapshot transaction and
--- refuses to fall back to READ COMMITTED. The database ships with this OFF.
-ALTER DATABASE [WideWorldImporters] SET ALLOW_SNAPSHOT_ISOLATION ON;
-GO
-
 -- Prove the guard can see rather than asserting it. USER, not LOGIN: VIEW DEFINITION and
 -- sys.security_policies are both database-scoped.
 EXECUTE AS USER = '$(EXTRACT_LOGIN)';
@@ -63,5 +58,5 @@ IF @policies = 0
 PRINT 'Guard visibility confirmed: security policies visible to $(EXTRACT_LOGIN).';
 GO
 
-PRINT 'Login $(EXTRACT_LOGIN) ready: db_datareader, VIEW DEFINITION, snapshot isolation on, no UNMASK.';
+PRINT 'Login $(EXTRACT_LOGIN) ready: db_datareader, VIEW DEFINITION, no UNMASK, no write of any kind.';
 GO
