@@ -1,9 +1,3 @@
-{{
-    config(
-        materialized='table'
-    )
-}}
-
 with date_array as (
     select
         cast(unnest(generate_series(date '2000-01-01', date '2050-12-31', interval 1 day)) as date) as full_date

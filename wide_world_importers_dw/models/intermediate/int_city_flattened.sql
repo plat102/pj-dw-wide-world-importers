@@ -1,5 +1,4 @@
--- City with its state province and country flattened onto one row.
--- Extracted because dim_customer needs it twice, for the delivery and the postal address.
+-- City with its state province and country on one row; dim_customer needs it twice.
 
 select
     stg_application_city.city_key

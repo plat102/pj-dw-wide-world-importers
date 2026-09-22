@@ -1,31 +1,16 @@
-{{ config(schema='stg') }}
-
 with raw as (
     select *
     from {{ source('wwi_raw', 'sales__order_lines') }}
 )
-
-, raw__select_column as (
-    select
-        order_line_id AS order_line_key
-        , order_id AS order_key
-        , stock_item_id AS stock_item_key
-        , package_type_id AS package_type_key
-        , quantity AS quantity
-        , unit_price AS unit_price
-        , tax_rate AS tax_rate
-        , picked_quantity AS picked_quantity
-        , picking_completed_when AS picking_completed_date_key
-    from raw
-)
-
-, raw__add_cursor_timestamp as (
-    select 
-        *
-        , {{ snapshot_processed_at() }} as processed_at
-    from raw__select_column
-    -- cursor timestamp should be loaded time of the data into data lake
-    -- this is just a workaround
-)
-
-select * from raw__add_cursor_timestamp
+select
+    order_line_id as order_line_key
+    , order_id as order_key
+    , stock_item_id as stock_item_key
+    , package_type_id as package_type_key
+    , quantity
+    , unit_price
+    , tax_rate
+    , picked_quantity
+    , picking_completed_when as picking_completed_date_key
+    , {{ snapshot_processed_at() }} as processed_at
+from raw

@@ -53,9 +53,6 @@ models:
         data_tests: [unique, not_null]
       - name: sales_order_key
         data_tests: [not_null]
-
-      # Ten foreign keys, not the eight this change first counted: the two
-      # picking-completed dates are date keys too, and they resolve to dim_date.
       - name: customer_key
         data_tests:
           - not_null

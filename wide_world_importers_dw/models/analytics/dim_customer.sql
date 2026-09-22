@@ -1,5 +1,4 @@
--- Natural keys of joined-in dimensions are dropped on purpose: the attribute is carried
--- here, so the key would only invite a second join downstream.
+-- Natural keys of joined-in dimensions are dropped: the attribute is carried here already.
 
 select
     stg_sales_customer.customer_key

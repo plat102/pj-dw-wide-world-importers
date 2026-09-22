@@ -3,10 +3,9 @@ version: 2
 models:
   - name: mart_sales_order_line
     description: >
-      One row per sales order line with every dimension flattened on. Same grain as
-      fact_sales_order_line; if the row counts ever diverge, a dimension has a duplicate key.
-      This is the published surface of the warehouse, so the column list is a contract:
-      an upstream change that would alter it fails the build instead of arriving silently.
+      One row per sales order line with every dimension flattened on, at the same grain as
+      fact_sales_order_line. The published surface of the warehouse, so its column list is an
+      enforced contract: an upstream change that would alter it fails the build.
     config:
       contract:
         enforced: true

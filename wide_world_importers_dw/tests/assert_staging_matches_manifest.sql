@@ -1,5 +1,4 @@
--- Declared, not inferred: a cold parse intermittently failed to infer these and scheduled the
--- test ahead of the models it reads.
+-- Declared, not inferred: a cold parse sometimes scheduled this test ahead of the models it reads.
 -- depends_on: {{ ref('stg_application_city') }}
 -- depends_on: {{ ref('stg_application_country') }}
 -- depends_on: {{ ref('stg_application_delivery_method') }}
@@ -16,8 +15,8 @@
 -- depends_on: {{ ref('stg_warehouse_package_type') }}
 -- depends_on: {{ ref('stg_warehouse_stock_item') }}
 
--- Every staging model must carry the row count the manifest recorded: staging only renames and
--- casts, so a difference means a silent filter or the wrong snapshot.
+-- Staging only renames and casts, so a row count differing from the manifest's means a silent
+-- filter or the wrong snapshot.
 
 with manifest as (
     select unnest(json_keys(tables)) as source_table, tables

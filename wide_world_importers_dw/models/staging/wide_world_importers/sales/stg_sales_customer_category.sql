@@ -4,5 +4,5 @@ with raw as (
 )
 select
     customer_category_id as customer_category_key
-    , customer_category_name as customer_category_name
+    , customer_category_name
 from raw
