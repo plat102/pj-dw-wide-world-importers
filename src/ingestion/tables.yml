@@ -1,7 +1,5 @@
-# Tables in the Parquet snapshot. Columns are named, not `*`, so the schema is deliberate and
-# computed columns survive. Editing this file changes the contract -- bump schema_version.
-
-schema_version: 1
+# Tables the lake's bronze schema carries: exactly the ones a model reads, added in the same
+# change as the model that needs them. Columns are named, not `*`, so the schema is deliberate.
 
 tables:
   - source: Application.Cities
@@ -76,47 +74,6 @@ tables:
       - LastEditedBy
       - ValidFrom
       - ValidTo
-
-  - source: Application.TransactionTypes
-    output: application__transaction_types
-    columns:
-      - TransactionTypeID
-      - TransactionTypeName
-      - LastEditedBy
-      - ValidFrom
-      - ValidTo
-
-  - source: Purchasing.PurchaseOrderLines
-    output: purchasing__purchase_order_lines
-    columns:
-      - PurchaseOrderLineID
-      - PurchaseOrderID
-      - StockItemID
-      - OrderedOuters
-      - Description
-      - ReceivedOuters
-      - PackageTypeID
-      - ExpectedUnitPricePerOuter
-      - LastReceiptDate
-      - IsOrderLineFinalized
-      - LastEditedBy
-      - LastEditedWhen
-
-  - source: Purchasing.PurchaseOrders
-    output: purchasing__purchase_orders
-    columns:
-      - PurchaseOrderID
-      - SupplierID
-      - OrderDate
-      - DeliveryMethodID
-      - ContactPersonID
-      - ExpectedDeliveryDate
-      - SupplierReference
-      - IsOrderFinalized
-      - Comments
-      - InternalComments
-      - LastEditedBy
-      - LastEditedWhen
 
   - source: Purchasing.SupplierCategories
     output: purchasing__supplier_categories
@@ -211,35 +168,6 @@ tables:
       - ValidFrom
       - ValidTo
 
-  - source: Sales.Invoices
-    output: sales__invoices
-    columns:
-      - InvoiceID
-      - CustomerID
-      - BillToCustomerID
-      - OrderID
-      - DeliveryMethodID
-      - ContactPersonID
-      - AccountsPersonID
-      - SalespersonPersonID
-      - PackedByPersonID
-      - InvoiceDate
-      - CustomerPurchaseOrderNumber
-      - IsCreditNote
-      - CreditNoteReason
-      - Comments
-      - DeliveryInstructions
-      - InternalComments
-      - TotalDryItems
-      - TotalChillerItems
-      - DeliveryRun
-      - RunPosition
-      - ReturnedDeliveryData
-      - ConfirmedDeliveryTime
-      - ConfirmedReceivedBy
-      - LastEditedBy
-      - LastEditedWhen
-
   - source: Sales.OrderLines
     output: sales__order_lines
     columns:
@@ -322,45 +250,3 @@ tables:
       - ValidFrom
       - ValidTo
 
-  - source: Warehouse.StockItems_Archive
-    output: warehouse__stock_items_archive
-    columns:
-      - StockItemID
-      - StockItemName
-      - SupplierID
-      - ColorID
-      - UnitPackageID
-      - OuterPackageID
-      - Brand
-      - Size
-      - LeadTimeDays
-      - QuantityPerOuter
-      - IsChillerStock
-      - Barcode
-      - TaxRate
-      - UnitPrice
-      - RecommendedRetailPrice
-      - TypicalWeightPerUnit
-      - MarketingComments
-      - InternalComments
-      - CustomFields
-      - Tags
-      - SearchDetails
-      - LastEditedBy
-      - ValidFrom
-      - ValidTo
-
-  - source: Warehouse.StockItemTransactions
-    output: warehouse__stock_item_transactions
-    columns:
-      - StockItemTransactionID
-      - StockItemID
-      - TransactionTypeID
-      - CustomerID
-      - InvoiceID
-      - SupplierID
-      - PurchaseOrderID
-      - TransactionOccurredWhen
-      - Quantity
-      - LastEditedBy
-      - LastEditedWhen

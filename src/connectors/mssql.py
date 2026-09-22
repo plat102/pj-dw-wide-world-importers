@@ -1,6 +1,6 @@
 """The source database. The only module in this project permitted to reach it.
 
-Preconditions and facts for the manifest only -- reading the rows is dlt's job. The import-linter
+Preconditions and the source version only -- reading the rows is dlt's job. The import-linter
 contracts in pyproject.toml fail the build if anything else acquires the means to connect.
 """
 
@@ -24,9 +24,15 @@ def connection_string(source_db: str) -> str:
 
 
 def engine(conn_str: str) -> sa.Engine:
-    # dlt round-robins all 21 resources and each holds its connection across yields, so all are
-    # open at once -- past QueuePool's default ceiling of 15. NullPool has no ceiling.
-    return sa.create_engine(conn_str, poolclass=NullPool)
+    # dlt round-robins the resources and each holds its connection across yields, so every
+    # declared table is open at once -- past QueuePool's ceiling. NullPool has no ceiling.
+    try:
+        return sa.create_engine(conn_str, poolclass=NullPool)
+    except sa.exc.ArgumentError as error:
+        raise ToolingError(
+            "MSSQL_CONNECTION_STRING is not a connection string -- expected "
+            f"mssql+pymssql://LOGIN:PASSWORD@HOST:1433/ ({error})"
+        ) from error
 
 
 def check_declared_columns(source: sa.Engine, tables: list[dict]) -> None:
@@ -100,8 +106,8 @@ def assert_out_of_load_mode(conn: sa.Connection, source_db: str) -> None:
         )
 
 
-def inspect_source(source: sa.Engine, source_db: str) -> dict[str, str]:
-    """Check the preconditions and read the facts the manifest records."""
+def inspect_source(source: sa.Engine, source_db: str) -> str:
+    """Check the preconditions and return the source version, which the extract reports."""
     with source.connect() as conn:
         exists = conn.execute(
             sa.text("SELECT 1 FROM sys.databases WHERE name = :db"), {"db": source_db}
@@ -118,18 +124,6 @@ def inspect_source(source: sa.Engine, source_db: str) -> dict[str, str]:
                 "+ CAST(SERVERPROPERTY('Edition') AS varchar(60))"
             )
         ).scalar()
-        computed = conn.execute(
-            sa.text(
-                "SELECT COUNT(*) FROM sys.computed_columns "
-                "WHERE object_id = OBJECT_ID('Sales.Invoices') AND name = 'ConfirmedDeliveryTime'"
-            )
-        ).scalar()
     if version is None:
-        raise ToolingError(
-            "SERVERPROPERTY returned no version -- the manifest records it, so it must exist"
-        )
-    return {
-        "mssql_version": str(version),
-        # Without the computed column, on-time has to be parsed from ReturnedDeliveryData instead.
-        "delivery_time_form": "computed_column" if computed else "raw_json",
-    }
+        raise ToolingError("SERVERPROPERTY returned no version")
+    return str(version)

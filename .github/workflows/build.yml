@@ -1,6 +1,6 @@
-# Static gates on every pull request. Nothing here builds the warehouse: the snapshot is read from
-# a SQL Server that CI has no access to, and this repository ships no data to build on instead.
-# The 44 dbt tests run on a developer machine after `make extract`.
+# Static gates on every pull request. Nothing here builds the warehouse: bronze is loaded from a
+# SQL Server that CI has no access to, and this repository ships no data to build on instead.
+# The dbt tests run on a developer machine after `make extract`.
 
 name: build
 
@@ -28,7 +28,7 @@ jobs:
           enable-cache: true
       - run: make install
 
-      - name: Lint, import boundaries, types, unit tests, and sources.yml drift
+      - name: Lint, import boundaries, types and unit tests
         run: make check
 
       # Compiling the dbt project needs no containers and catches a bad ref, a Jinja error or a

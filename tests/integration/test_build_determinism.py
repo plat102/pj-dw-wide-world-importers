@@ -1,7 +1,8 @@
-"""Two builds of one snapshot must produce identical tables.
+"""Two builds of one bronze load must produce identical tables.
 
-Needs the stack up and a snapshot in bronze; `make test` skips it when either is missing.
+Needs the stack up and a loaded bronze schema; `make test` skips it when either is missing.
 Views are not compared: a view is re-evaluated on read, so two builds cannot disagree about one.
+Bronze is not compared either: dbt never rewrites it, so the answer is a foregone conclusion.
 """
 
 from __future__ import annotations
@@ -14,8 +15,6 @@ import pytest
 
 from config import settings
 from connectors import ducklake, s3
-from contracts import manifest as manifest_contract
-from contracts.paths import bronze_prefix
 
 pytestmark = pytest.mark.integration
 
@@ -78,14 +77,13 @@ def two_builds() -> tuple[duckdb.DuckDBPyConnection, int, int]:
         conn = ducklake.connect()
     except Exception as error:
         pytest.skip(f"lake unreachable: {type(error).__name__}: {error}")
-    conn.close()
 
-    # A reachable lake with nothing in bronze is "not set up", not a failure: the build would
-    # error on every staging model and report it as non-determinism.
-    manifest = manifest_contract.load(settings.SNAPSHOT_MANIFEST)
-    prefix = bronze_prefix(manifest["snapshot_id"])
-    if not s3.client().exists(f"{settings.bucket()}/{prefix}"):
-        pytest.skip(f"no snapshot at s3://{settings.bucket()}/{prefix}/ -- run `make extract`")
+    # A reachable lake with an empty bronze is "not set up", not a failure: the build would error
+    # on every staging model and report it as non-determinism.
+    bronze = [t for s, t, _ in ducklake.relations(conn) if s == settings.BRONZE_SCHEMA]
+    conn.close()
+    if not bronze:
+        pytest.skip(f"{ducklake.CATALOG}.{settings.BRONZE_SCHEMA} is empty -- run `make extract`")
 
     _build()
     conn = ducklake.connect()
@@ -107,8 +105,12 @@ def test_every_table_is_identical_across_two_builds(
     two_builds: tuple[duckdb.DuckDBPyConnection, int, int],
 ) -> None:
     conn, first, second = two_builds
-    relations = [(s, t) for s, t, _ in ducklake.relations(conn, table_type="BASE TABLE")]
-    assert relations, "the lake holds no tables -- seed a snapshot and build first"
+    relations = [
+        (s, t)
+        for s, t, _ in ducklake.relations(conn, table_type="BASE TABLE")
+        if s != settings.BRONZE_SCHEMA
+    ]
+    assert relations, "the lake holds no built tables -- run `make build` first"
 
     differing = []
     for schema, table in relations:
@@ -128,6 +130,6 @@ def test_every_table_is_identical_across_two_builds(
             )
 
     assert not differing, (
-        f"{len(differing)} of {len(relations)} tables differ between two builds of one snapshot:\n"
+        f"{len(differing)} of {len(relations)} tables differ between two builds of one load:\n"
         + "\n".join(f"  {d}" for d in differing)
     )

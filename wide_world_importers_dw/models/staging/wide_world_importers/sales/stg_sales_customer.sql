@@ -25,5 +25,5 @@ select
     , postal_address_line1 as postal_address_line_1
     , postal_address_line2 as postal_address_line_2
     , postal_postal_code
-    , {{ snapshot_processed_at() }} as processed_at
+    , {{ processed_at() }} as processed_at
 from raw

@@ -1,7 +1,5 @@
 # Copy to ~/.dbt/profiles.yml (or set DBT_PROFILES_DIR). The top-level key must match `profile:`
 # in dbt_project.yml. Every value comes from the environment, so there is nothing to fill in.
-#
-# Exception: the `dev` (BigQuery) target needs a project and keyfile written in. Never commit that.
 
 wide_world_importers_dw:
   outputs:
@@ -28,6 +26,10 @@ wide_world_importers_dw:
             password={{ env_var('CATALOG_PASSWORD') }}
           alias: lake
           options:
+            # Both halves must attach the same lake, and that now means the same catalog metadata:
+            # bronze is a schema in it. Stated rather than inherited from the role's search path,
+            # so dlt and dbt provably agree -- see settings.METADATA_SCHEMA.
+            metadata_schema: public
             data_path: "s3://{{ env_var('S3_BUCKET', 'wwi') }}/{{ env_var('LAKE_PREFIX', 'lake') }}/"
       database: lake
       schema: main
@@ -38,16 +40,4 @@ wide_world_importers_dw:
           endpoint: "{{ env_var('S3_ENDPOINT', 'localhost:8333') }}"
           url_style: path
           use_ssl: "{{ env_var('S3_USE_SSL', 'false') }}"
-
-    dev:
-      type: bigquery
-      method: service-account
-      project: <gcp-project-id>
-      keyfile: /absolute/path/to/service-account.json
-      dataset: "wwi" # prefix of dataset name if schema specified in project/models
-      location: asia-southeast1
-      job_execution_timeout_seconds: 300
-      job_retries: 1
-      priority: interactive
-      threads: 4
   target: lake

@@ -11,5 +11,5 @@ select
     , is_salesperson
     , phone_number
     , email_address
-    , {{ snapshot_processed_at() }} as processed_at
+    , {{ processed_at() }} as processed_at
 from raw

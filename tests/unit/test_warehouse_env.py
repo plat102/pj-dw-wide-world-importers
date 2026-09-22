@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from urllib.parse import unquote, urlsplit
+
 import pytest
 
-from config.settings import catalog_dsn, data_path, endpoint_url, use_ssl
+from config.settings import catalog_dsn, catalog_url, data_path, endpoint_url, use_ssl
 
 
 @pytest.mark.parametrize("value", ["1", "true", "TRUE", "Yes", " true ", "1 "])
@@ -44,9 +46,31 @@ def test_catalog_dsn_defaults_match_the_compose_stack(monkeypatch: pytest.Monkey
     assert "port=55432" in dsn
 
 
-def test_lake_prefix_defaults_and_is_separate_from_bronze(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The lake and the snapshot share a bucket, so the prefixes must not collide."""
+def test_data_path_is_the_lake_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    """dlt's DATA_PATH and dbt's data_path are this string. A missing slash makes two lakes."""
     monkeypatch.setenv("S3_BUCKET", "wwi")
     monkeypatch.delenv("LAKE_PREFIX", raising=False)
     assert data_path() == "s3://wwi/lake/"
-    assert not data_path().startswith("s3://wwi/bronze")
+
+
+def test_catalog_url_and_dsn_reach_one_database(monkeypatch: pytest.MonkeyPatch) -> None:
+    """dlt is handed a URL and duckdb a libpq string; they must name the same catalog."""
+    for name in ("CATALOG_DB", "CATALOG_HOST", "CATALOG_PORT"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("CATALOG_USER", "ducklake")
+    monkeypatch.setenv("CATALOG_PASSWORD", "secret")
+    parts = urlsplit(catalog_url())
+    assert parts.hostname == "localhost"
+    assert str(parts.port) == "55432"
+    assert parts.path == "/ducklake"
+    assert parts.username == "ducklake"
+    assert "dbname=ducklake" in catalog_dsn()
+
+
+def test_catalog_url_quotes_a_reserved_character(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A password is user data. Unquoted, a `/` or `@` in it silently truncates the URL."""
+    monkeypatch.setenv("CATALOG_USER", "ducklake")
+    monkeypatch.setenv("CATALOG_PASSWORD", "p@ss/word")
+    url = catalog_url()
+    assert "p%40ss%2Fword" in url
+    assert unquote(urlsplit(url).password or "") == "p@ss/word"

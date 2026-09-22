@@ -9,17 +9,21 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
+from urllib.parse import quote
 
 from utils.exceptions import ToolingError
 
 # src/config/settings.py -> src/config -> src -> repo root
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-DATA_DIR = REPO_ROOT / "data"
-SNAPSHOT_MANIFEST = DATA_DIR / "snapshots" / "manifest.json"
-
 DBT_DIR = REPO_ROOT / "wide_world_importers_dw"
 TABLES_CONFIG = REPO_ROOT / "src" / "ingestion" / "tables.yml"
+
+# The lake schema `make extract` writes and dbt's sources read.
+BRONZE_SCHEMA = "bronze"
+# The schema holding the lake's catalog tables. dlt and dbt must name the same one, or each
+# attaches a lake of its own inside one Postgres.
+METADATA_SCHEMA = "public"
 
 TRUTHY = {"1", "true", "yes"}
 
@@ -61,7 +65,7 @@ def lake_prefix() -> str:
 
 
 def data_path() -> str:
-    """Where the lake's own Parquet lives. Shares a bucket with bronze/, never a prefix."""
+    """The lake root. Every layer lives in it, bronze included, as schemas of one catalog."""
     return f"s3://{bucket()}/{lake_prefix()}/"
 
 
@@ -75,6 +79,17 @@ def catalog_dsn() -> str:
     )
 
 
+def catalog_url() -> str:
+    """The catalog as a URL, the only form dlt parses. Same database as `catalog_dsn`."""
+    return (
+        f"postgresql://{quote(require('CATALOG_USER'), safe='')}"
+        f":{quote(require('CATALOG_PASSWORD'), safe='')}"
+        f"@{optional('CATALOG_HOST', 'localhost')}:{optional('CATALOG_PORT', '55432')}"
+        f"/{optional('CATALOG_DB', 'ducklake')}"
+    )
+
+
 def redact(text: str) -> str:
-    """Strip the catalog password from text about to be printed: dbt echoes ATTACH on failure."""
-    return re.sub(r"password=\S+", "password=***", text)
+    """Strip the catalog password: dbt echoes the libpq form on failure, dlt echoes the URL one."""
+    text = re.sub(r"password=\S+", "password=***", text)
+    return re.sub(r"(://[^:/@\s]+:)[^@\s]+@", r"\1***@", text)
