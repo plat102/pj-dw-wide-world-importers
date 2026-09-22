@@ -9,11 +9,11 @@ graph TB
     subgraph Stage1["Stage 1 -- needs the source"]
         OLTP[SQL Server 2025<br/>Wide World Importers OLTP]
         SNAP[database snapshot<br/>frozen, read-only]
-        DLT[dlt 1.30]
+        DLT[dlt 1.30<br/>sql_table → filesystem destination]
     end
 
     subgraph Boundary["The contract"]
-        PARQUET[(s3://wwi/bronze/<snapshot-id>/*.parquet<br/>21 tables)]
+        PARQUET[(s3://wwi/bronze/&lt;snapshot-id&gt;/&lt;table&gt;/*.parquet<br/>one folder per table)]
         MANIFEST[manifest.json<br/>SHA256 + row count + types]
     end
 
@@ -32,8 +32,8 @@ graph TB
 
     OLTP --> SNAP
     SNAP -->|extract| DLT
-    DLT --> PARQUET
-    DLT --> MANIFEST
+    DLT -->|writes s3:// directly| PARQUET
+    PARQUET -->|described after the load| MANIFEST
     PARQUET -->|read_parquet| DUCK
     MANIFEST -.->|verified before every build| DUCK
     DUCK --> STG
@@ -52,13 +52,15 @@ The earlier BigQuery build (`wwi_raw` → `wwi_stg` → `wwi_dwh` → `wwi_mart`
 
 | Layer        | Schema        | Purpose                                                               | Materialisation |
 | ------------ | ------------- | --------------------------------------------------------------------- | --------------- |
-| Raw          | —            | Parquet under`s3://$S3_BUCKET/bronze/<snapshot-id>/`, read in place | none            |
+| Raw          | —            | Parquet under`s3://$S3_BUCKET/bronze/<snapshot-id>/<table>/`, read in place | none            |
 | Staging      | `main_stg`  | One view per source table: renames and casts, no joins                | Views           |
 | Intermediate | `main_stg`  | Joins reused by more than one downstream model                        | Views           |
 | Analytics    | `main_dwh`  | The star schema: dimensions and the fact                              | Tables          |
 | Marts        | `main_mart` | One denormalised table for BI, columns under contract                 | Tables          |
 
 **Raw is not a layer with tables in it.** `sources.yml` points `source()` straight at the Parquet via `read_parquet` — no load step, nothing copied. That is the one place this differs from the frozen BigQuery layout, where `wwi_raw` held real tables.
+
+A table is a *folder* of Parquet, not a single file: dlt's filesystem destination decides how many files a load takes, so `sources.yml` globs `<table>/*.parquet` and the manifest lists a table's files rather than one name.
 
 *Data flow* is physical movement (the diagram above). *Data lineage* is logical dependency between tables — see [Data Modeling](data_modelling.md), or `dbt docs` for the interactive DAG.
 
@@ -67,11 +69,11 @@ The earlier BigQuery build (`wwi_raw` → `wwi_stg` → `wwi_dwh` → `wwi_mart`
 | Component      | Technology                      | Purpose                                                     |
 | -------------- | ------------------------------- | ----------------------------------------------------------- |
 | Source         | SQL Server 2025                 | WWI OLTP, read from a frozen database snapshot              |
-| Extraction     | dlt 1.30 → Parquet             | 21 tables, checksummed into`data/snapshots/manifest.json` |
+| Extraction     | dlt 1.30 → Parquet on the store | The declared tables, checksummed into`data/snapshots/manifest.json` |
 | Object store   | SeaweedFS (S3 API)              | The bronze snapshot and the lake's Parquet                  |
 | Warehouse      | DuckLake on DuckDB              | Parquet on the store, catalog in Postgres 16                |
 | Transformation | dbt Core 1.12 + dbt-duckdb 1.11 | SQL-based ELT                                               |
-| Tooling        | Python 3.12,`wwi` CLI         | Extraction, publication, verification, demo                 |
+| Tooling        | Python 3.12,`wwi` CLI         | Extraction, verification, inspection                        |
 | Visualization  | Looker Studio                   | Frozen against the BigQuery warehouse                       |
 
 The `dev` (BigQuery) profile target is kept as an exhibit. `dbt-bigquery` is **not** installed: it pulled 45 packages into the lock file for a target nothing builds against.
@@ -87,8 +89,8 @@ The extraction half holds the source credential; nothing downstream may reach th
 | Contract                                                                                                           | Prevents                                                      |
 | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
 | Only`connectors.mssql` may import `dlt` / `sqlalchemy` / `pymssql`                                         | a new source connection anywhere else                         |
-| `warehouse`, `demo`, `contracts`, `config`, `utils` must not import `connectors.mssql`                 | the transform half acquiring the means to connect             |
-| Layered:`utils`/`config` → `contracts` → `connectors` → `ingestion`/`warehouse` → `demo`/`cli` | the core reaching back up; a new module escaping the layering |
+| `warehouse`, `contracts`, `config`, `utils` must not import `connectors.mssql`                             | the transform half acquiring the means to connect             |
+| Layered:`utils`/`config` → `contracts` → `connectors` → `ingestion`/`warehouse` → `cli`         | the core reaching back up; a new module escaping the layering |
 
 Each was shown to fail before it was trusted.
 
@@ -106,7 +108,9 @@ See [Data Modeling](data_modelling.md).
 
 **1. ELT over ETL.** Extraction lands Parquet and transforms nothing; dbt does it all in SQL, in version control. Nothing is loaded — DuckDB reads the Parquet where it sits.
 
-**2. Four transformation layers, no pass-through.** Staging is exactly one view per source table, renames and casts only, no joins — verified across all 15. Intermediate holds joins reused more than once; there is one, `int_city_flattened`. Analytics is the star. Marts are denormalised for BI under an enforced contract. Five `stg_*_wwi` models whose only job was to be selected from by an identically-shaped `analytics/` model are gone, along with the models that selected them.
+**1b. Plain EL, per-table, with no cross-table transaction.** An earlier build read every table inside one SQL Server snapshot-isolation transaction and asserted the transaction id had not changed, so the snapshot was provably one instant. It was removed. The guarantee is real and the technique is the right one on a live 24/7 OLTP — but this source is a static sample database, and the extraction separately asserts the data generator is off, so the protection had no threat to protect against. What it cost was concrete: it forced one `pipeline.extract()` call per resource, a local staging directory and a hand-written flattening step, none of which dlt needs. The trade is stated rather than hidden: the referential tests still pass, but now because the source does not move, not because the pipeline guarantees it. On a source that does move, put it back.
+
+**2. Four transformation layers, no pass-through.** Staging is exactly one view per source table, renames and casts only, no joins. Intermediate holds joins reused more than once; there is one, `int_city_flattened`. Analytics is the star. Marts are denormalised for BI under an enforced contract. Five `stg_*_wwi` models whose only job was to be selected from by an identically-shaped `analytics/` model are gone, along with the models that selected them.
 
 **3. One surrogate key.** `dim_stock_item.stock_item_sk`, MD5 over the natural key; every other dimension is keyed on its natural key. Its original justification — versioning `unit_price` — was **falsified by measurement**: no stock item has ever had more than one distinct price, and the data generator never writes to that table, so extending the data cannot create history either. Kept because it costs nothing and a later Type 2 build would want it.
 
@@ -114,11 +118,11 @@ See [Data Modeling](data_modelling.md).
 
 | Guard              | What it covers                                                                                                                                                                                 |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 44 dbt tests       | `unique` + `not_null` on every dimension key, ten `relationships` from the fact, manifest row-count parity across all 15 staging models, a mart grain test, a `dim_date` calendar test |
-| Enforced contract  | `mart_sales_order_line` declares all 70 columns and types; an upstream change to its shape fails the build                                                                                   |
+| dbt tests          | `unique` + `not_null` on every dimension key, a `relationships` test on every foreign key from the fact, manifest row-count parity across every staging model, a mart grain test, a `dim_date` calendar test |
+| Enforced contract  | `mart_sales_order_line` declares every column and type; an upstream change to its shape fails the build                                                                                   |
 | Determinism        | `make compare` builds twice and diffs every relation, naming the column when one differs. 0 differing                                                                                        |
 | Snapshot integrity | `make verify` checks Parquet against the SHA256, row counts and column types in the manifest                                                                                                 |
-| Static gates       | `make check` — ruff, import contracts, mypy, unit tests, `sources.yml` drift                                                                                                              |
+| Static gates       | `make check` — ruff, import contracts, mypy, unit tests, `sources.yml` drift — plus `dbt parse`, which compiles every model without a database. That is all CI runs: the warehouse is built from a source CI cannot reach, so the tests above run on a developer machine |
 
 Source freshness is not configured and cannot be: the source is a frozen snapshot, so freshness has nothing to measure.
 

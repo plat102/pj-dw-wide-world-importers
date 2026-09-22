@@ -165,8 +165,11 @@ The line to hold:
 | Changes when… | Examples | Rule |
 | --- | --- | --- |
 | the **data** changes | row counts, byte sizes, "402 of 686", extraction wall clock | Keep out. State the property, name the command |
-| the **code** changes | column counts, model counts, "ten foreign keys" | Fine to write. A reviewer sees them move in the same diff |
-| never — it is a pinned expectation | the eight dates in `assert_dim_date_calendar` | Required. That is what the test *is* |
+| the **code** changes | column counts, model counts, test counts, "ten foreign keys" | Keep out. Describe the shape, not the tally |
+| never — it is a pinned expectation | the dates in `assert_dim_date_calendar`, a library's default pool size | Required. That is what the thing *is* |
+| it is a target, not a tally | "dashboard queries under 5 seconds", "two builds must be identical" | Required. The number is the criterion |
+
+The middle row used to say code-derived counts were fine, on the reasoning that a reviewer sees them move in the same diff. That reasoning was tested and failed: "ten foreign keys" sat in three documents and a model comment while the code carried eleven, through several commits and more than one review. A count nobody recomputes is a claim nobody checks.
 
 Write "no stock item has ever had more than one distinct price", not "444 rows over 227 items with zero price changes". The first survives a bigger dataset.
 
@@ -185,3 +188,19 @@ This rule covers documentation describing the *present*. A dated measurement is 
 - Singular tests go in `tests/`, named `assert_<what_must_be_true>.sql`. Three exist: `assert_dim_date_calendar`, `assert_staging_matches_manifest`, `assert_mart_keeps_fact_grain`.
 - **A test is not trusted until it has been seen to fail.** Break the thing it guards, watch it go red, put it back. A test that has only ever been green says nothing about whether it works, and in this project one negative test passed for the wrong reason until it was provoked properly.
 - The mart's column list is a contract (`contract: enforced`) — a test in a different shape, which fails the build rather than a test run.
+
+## Markdown in this repository
+
+**Prose is never hard-wrapped.** One paragraph is one line; one bullet is one line. Let the editor soft-wrap it.
+
+The reason is the diff. A hard-wrapped paragraph reflows when a word changes near its start, so `git diff` shows the whole block and a reviewer cannot see which sentence actually moved. Unwrapped, a changed sentence is a changed line.
+
+Line breaks are therefore structural, not visual. Break only at a real boundary:
+
+- between paragraphs, and between bullets
+- around a heading, a table, or a fenced code block
+- inside a fenced block, where the content's own line breaks are the content
+
+This applies to every `.md` in the repository — `README.md`, `REVIEW.md`, `docs/`, and the dbt project's own README. Tables keep one row per line, and code fences are left exactly as written.
+
+Nothing enforces this yet; it is a convention, not a gate. A `git diff` that lights up a whole paragraph for a one-word change is the symptom to watch for.
