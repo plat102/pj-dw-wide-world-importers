@@ -1,4 +1,4 @@
-"""Environment parsing in warehouse.py. Small functions, but every command depends on them."""
+"""Environment parsing in config.settings. Small functions, but every command depends on them."""
 
 from __future__ import annotations
 

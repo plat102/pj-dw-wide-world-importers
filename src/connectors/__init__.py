@@ -1,5 +1,5 @@
-"""One module per external system, each named after what it actually speaks.
+"""One module per external system, each named after what it speaks.
 
-`mssql` is the only module in this project permitted to reach the source database. The rule is
-enforced rather than described -- see the import-linter contracts in pyproject.toml.
+`mssql` is the only module permitted to reach the source database -- enforced by the import-linter
+contracts in pyproject.toml.
 """

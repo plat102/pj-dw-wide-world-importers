@@ -1,7 +1,6 @@
 """The extraction contract: which tables and columns the snapshot is required to carry.
 
-`tables.yml` names columns explicitly rather than `*`, so the schema is deliberate and computed
-columns survive. Editing that file changes the contract, which is what `schema_version` is for.
+Editing `tables.yml` changes the contract, which is what `schema_version` is for.
 """
 
 from __future__ import annotations
@@ -19,9 +18,5 @@ def load(path: Path = settings.TABLES_CONFIG) -> dict[str, Any]:
 
 
 def schema_version(path: Path = settings.TABLES_CONFIG) -> int:
-    """The schema this checkout expects. Read here so there is one copy of the answer."""
+    """The schema version this checkout expects."""
     return int(load(path)["schema_version"])
-
-
-def specs(path: Path = settings.TABLES_CONFIG) -> list[dict[str, Any]]:
-    return list(load(path)["tables"])

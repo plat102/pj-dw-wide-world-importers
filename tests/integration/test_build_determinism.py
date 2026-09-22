@@ -1,9 +1,6 @@
 """Two builds of one snapshot must produce identical tables.
 
-Needs the stack up and a snapshot seeded, so it is an integration test and `make test` skips it
-unless the lake is reachable. It was a `make compare` script; calling it a test is what it always
-was, and it now fails a run rather than needing someone to remember to invoke it.
-
+Needs the stack up and a snapshot in bronze; `make test` skips it when either is missing.
 Views are not compared: a view is re-evaluated on read, so two builds cannot disagree about one.
 """
 
@@ -17,16 +14,17 @@ import pytest
 
 from config import settings
 from connectors import ducklake, s3
+from contracts import manifest as manifest_contract
+from contracts.paths import bronze_prefix
 
 pytestmark = pytest.mark.integration
 
 
 def _build() -> None:
-    command = ["dbt", "build", "--project-dir", str(settings.DBT_DIR)]
-    # check=False: a failed build is reported with its output redacted, not raised bare -- the
-    # attach string carries the catalog password and dbt echoes it on failure.
+    # check=False: the output is redacted before it is reported, because the attach string
+    # carries the catalog password and dbt echoes it on failure.
     result = subprocess.run(
-        command,
+        ["dbt", "build", "--project-dir", str(settings.DBT_DIR)],
         cwd=settings.REPO_ROOT,
         env=os.environ.copy(),
         capture_output=True,
@@ -78,9 +76,16 @@ def two_builds() -> tuple[duckdb.DuckDBPyConnection, int, int]:
     """Build twice; each build commits a lake snapshot that time travel can address."""
     try:
         conn = ducklake.connect()
-    except Exception as error:  # the stack is not up, or no snapshot is seeded
+    except Exception as error:
         pytest.skip(f"lake unreachable: {type(error).__name__}: {error}")
     conn.close()
+
+    # A reachable lake with nothing in bronze is "not set up", not a failure: the build would
+    # error on every staging model and report it as non-determinism.
+    manifest = manifest_contract.load(settings.SNAPSHOT_MANIFEST)
+    prefix = bronze_prefix(manifest["snapshot_id"])
+    if not s3.client().exists(f"{settings.bucket()}/{prefix}"):
+        pytest.skip(f"no snapshot at s3://{settings.bucket()}/{prefix}/ -- run `make extract`")
 
     _build()
     conn = ducklake.connect()

@@ -1,13 +1,7 @@
 """Arrow type to DuckDB type, in one place.
 
-`sources.yml` is generated from these and the zero-row seed writes Parquet with them, so the two
-must agree by construction. They previously disagreed about failure: the generator exited on an
-unmapped type while the seeder caught KeyError and carried on.
-
-Arrow types are what the extraction sees; dbt wants the warehouse's names. Checked column by column
-against `describe select * from read_parquet(...)`: no Arrow type maps to two DuckDB types. Entries
-are added when a snapshot actually produces them, never speculatively -- an unverified row here is
-a wrong type in every model that reads the column.
+`sources.yml` is generated from this map, so it is what dbt is told the snapshot's columns are.
+Entries are added when a snapshot actually produces them, never speculatively.
 """
 
 from __future__ import annotations
@@ -26,12 +20,8 @@ ARROW_TO_DUCKDB = {
 
 
 def duckdb_type(arrow: str) -> str:
-    """Fail loudly on an unmapped type rather than guessing or passing it through.
-
-    A new Arrow type means the snapshot gained a column shape nobody has checked against DuckDB.
-    Silently emitting the Arrow name would give dbt a type it does not know, and the error would
-    surface far from its cause.
-    """
+    """Raise on an unmapped type rather than passing it through: dbt would get a type it does not
+    know, and the error would surface far from its cause."""
     mapped = ARROW_TO_DUCKDB.get(arrow)
     if mapped is None:
         raise ToolingError(

@@ -1,13 +1,7 @@
-"""Every environment variable this project reads, and every path it resolves, in one place.
+"""Every environment variable this project reads and every path it resolves, in one place.
 
-Two problems this replaces. First, `warehouse.require()` called `sys.exit` from inside a library,
-so importing it put a process exit one call away from any caller. Second, the defaults were written
-twice -- here and in `profiles.sample.yml` -- and they disagreed: `require("S3_BUCKET")` failed hard
-on unset while the dbt profile quietly fell back to `wwi`. The dbt profile still reads the same
-variables through `env_var`, but the names and defaults are stated here.
-
-Paths are absolute and derived from this file's location, not from the working directory. Eight
-modules used to recompute `REPO_ROOT` for themselves.
+The dbt profile reads the same variables through `env_var`; the names and defaults are stated here.
+Paths are derived from this file's location, so they do not depend on the working directory.
 """
 
 from __future__ import annotations
@@ -22,10 +16,7 @@ from utils.exceptions import ToolingError
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 DATA_DIR = REPO_ROOT / "data"
-RAW_DIR = DATA_DIR / "raw"
-DEMO_DIR = DATA_DIR / "demo"
 SNAPSHOT_MANIFEST = DATA_DIR / "snapshots" / "manifest.json"
-DEMO_MANIFEST = DEMO_DIR / "manifest.json"
 
 DBT_DIR = REPO_ROOT / "wide_world_importers_dw"
 TABLES_CONFIG = REPO_ROOT / "src" / "ingestion" / "tables.yml"
@@ -85,10 +76,5 @@ def catalog_dsn() -> str:
 
 
 def redact(text: str) -> str:
-    """Strip the catalog password out of anything about to be printed.
-
-    `catalog_dsn()` interpolates the password into the ATTACH statement, and dbt echoes that
-    statement on failure. This lives next to the function that creates the exposure rather than at
-    the call site that noticed it.
-    """
+    """Strip the catalog password from text about to be printed: dbt echoes ATTACH on failure."""
     return re.sub(r"password=\S+", "password=***", text)
