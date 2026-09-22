@@ -1,6 +1,6 @@
 -- Read-only login for the extraction. Password passed at run time, never stored here.
 --   sqlcmd -S localhost -U sa -C -v EXTRACT_LOGIN="wwi_extract" \
---          -v EXTRACT_PASSWORD="$WWI_EXTRACT_PASSWORD" -i scripts/mssql/prepare_extraction_login.sql
+--          -v EXTRACT_PASSWORD="$WWI_EXTRACT_PASSWORD" -i infrastructure/mssql/prepare_extraction_login.sql
 
 :on error exit
 
