@@ -69,7 +69,7 @@ The warehouse is a DuckLake lakehouse — Parquet on the object store, catalog i
 
 | Schema      | Purpose                                       |
 | ----------- | --------------------------------------------- |
-| —           | Raw Parquet on the object store under `bronze/<snapshot-id>/`, read in place |
+| `bronze`  | One table per entry in `src/ingestion/tables.yml`, loaded by dlt |
 | `main_stg`  | Staging (`stg_`) and intermediate (`int_`)     |
 | `main_dwh`  | Dimensional models                            |
 | `main_mart` | Business-ready denormalised tables            |
@@ -95,7 +95,7 @@ select
 from dim_customer
 ```
 
-Leading commas earn their keep: commenting a column out of a wide `select` is a one-character edit and cannot leave a dangling comma behind, which matters when the widest model has 70 columns.
+Leading commas earn their keep: commenting a column out of a wide `select` is a one-character edit and cannot leave a dangling comma behind, which matters in the mart, where the column list is long.
 
 ### Joins
 
@@ -176,8 +176,8 @@ Write "no stock item has ever had more than one distinct price", not "444 rows o
 Where a reader wants numbers, give the command:
 
 - `make shape` — every relation with its row and column count
-- `make verify` — the snapshot against the manifest's counts and checksums
-- `data/snapshots/manifest.json` — authoritative for source row counts, sizes and types
+- `make extract` — compares every table's landed row count against `COUNT(*)` at the source
+- `src/ingestion/tables.yml` — authoritative for which tables and columns bronze must carry
 
 This rule covers documentation describing the *present*. A dated measurement is a different thing and should carry its numbers — a stale number there is history, not a false claim.
 
@@ -185,7 +185,7 @@ This rule covers documentation describing the *present*. A dated measurement is 
 
 - Generic tests go in the `schema.yml` beside the models they cover, one per layer directory.
 - Every dimension key carries `unique` and `not_null`; every foreign key on the fact carries `relationships`. That is a rule, not a target — a new key without both is incomplete.
-- Singular tests go in `tests/`, named `assert_<what_must_be_true>.sql`. Three exist: `assert_dim_date_calendar`, `assert_staging_matches_manifest`, `assert_mart_keeps_fact_grain`.
+- Singular tests go in `tests/`, named `assert_<what_must_be_true>.sql`. Two exist: `assert_dim_date_calendar` and `assert_mart_keeps_fact_grain`. A project generic test goes in `tests/generic/`, named for the property it asserts: `matches_bronze_rowcount`.
 - **A test is not trusted until it has been seen to fail.** Break the thing it guards, watch it go red, put it back. A test that has only ever been green says nothing about whether it works, and in this project one negative test passed for the wrong reason until it was provoked properly.
 - The mart's column list is a contract (`contract: enforced`) — a test in a different shape, which fails the build rather than a test run.
 

@@ -2,23 +2,17 @@
 
 ## Architecture
 
-Two stages sharing nothing but an artifact. Stage 1 holds the source credential and produces an immutable, checksummed Parquet snapshot. Stage 2 consumes it and never opens a connection to SQL Server. The boundary is enforced by import contracts, not convention — see [Boundaries](#boundaries).
+Two stages sharing one lakehouse. Stage 1 holds the source credential and loads the declared tables into the lake's `bronze` schema. Stage 2 builds every other schema from it and never opens a connection to SQL Server. The boundary is enforced by import contracts, not convention — see [Boundaries](#boundaries).
 
 ```mermaid
 graph TB
     subgraph Stage1["Stage 1 -- needs the source"]
         OLTP[SQL Server 2025<br/>Wide World Importers OLTP]
-        SNAP[database snapshot<br/>frozen, read-only]
-        DLT[dlt 1.30<br/>sql_table → filesystem destination]
+        DLT[dlt 1.30<br/>sql_table → ducklake destination]
     end
 
-    subgraph Boundary["The contract"]
-        PARQUET[(s3://wwi/bronze/&lt;snapshot-id&gt;/&lt;table&gt;/*.parquet<br/>one folder per table)]
-        MANIFEST[manifest.json<br/>SHA256 + row count + types]
-    end
-
-    subgraph Stage2["Stage 2 -- never reaches the source database"]
-        DUCK[DuckDB<br/>reads Parquet over the S3 API]
+    subgraph Lake["Stage 2 -- one catalog, four schemas, no source credential"]
+        BRONZE[(bronze<br/>one table per declared source table)]
         STG[(main_stg<br/>staging + intermediate)]
         DWH[(main_dwh<br/>star schema)]
         MART[(main_mart<br/>wide mart, contract enforced)]
@@ -30,13 +24,9 @@ graph TB
         DOCS[dbt docs]
     end
 
-    OLTP --> SNAP
-    SNAP -->|extract| DLT
-    DLT -->|writes s3:// directly| PARQUET
-    PARQUET -->|described after the load| MANIFEST
-    PARQUET -->|read_parquet| DUCK
-    MANIFEST -.->|verified before every build| DUCK
-    DUCK --> STG
+    OLTP -->|one dlt run| DLT
+    DLT -->|ducklake destination| BRONZE
+    BRONZE -->|dbt| STG
     STG -->|dbt| DWH
     DWH -->|dbt| MART
     DBT -.-> STG
@@ -46,21 +36,23 @@ graph TB
     DWH --> DOCS
 ```
 
+**One catalog, four schemas.** `bronze` is written by dlt; `main_stg`, `main_dwh` and `main_mart` are built by dbt. They share a Postgres catalog and a data path, so a layer is a schema rather than a storage convention, and `source()` resolves to a relation. Nothing freezes the source first, and no dbt snapshot exists — DuckLake's own `snapshot_id` is a lake version, used by `make compare` for time travel.
+
 The earlier BigQuery build (`wwi_raw` → `wwi_stg` → `wwi_dwh` → `wwi_mart`, fed by manual CSV upload) is frozen as an exhibit. The Looker Studio dashboard still points at it.
 
 ## Layers
 
 | Layer        | Schema        | Purpose                                                               | Materialisation |
 | ------------ | ------------- | --------------------------------------------------------------------- | --------------- |
-| Raw          | —            | Parquet under`s3://$S3_BUCKET/bronze/<snapshot-id>/<table>/`, read in place | none            |
+| Bronze       | `bronze`    | One table per entry in`tables.yml`, loaded by dlt                      | Tables          |
 | Staging      | `main_stg`  | One view per source table: renames and casts, no joins                | Views           |
 | Intermediate | `main_stg`  | Joins reused by more than one downstream model                        | Views           |
 | Analytics    | `main_dwh`  | The star schema: dimensions and the fact                              | Tables          |
 | Marts        | `main_mart` | One denormalised table for BI, columns under contract                 | Tables          |
 
-**Raw is not a layer with tables in it.** `sources.yml` points `source()` straight at the Parquet via `read_parquet` — no load step, nothing copied. That is the one place this differs from the frozen BigQuery layout, where `wwi_raw` held real tables.
+Bronze holds the source as it arrived — renamed and typed by dlt, nothing else — plus `_dlt_load_id` on every row, the unix timestamp of the load that wrote it. Staging turns that into `processed_at`, which is why two builds of one load compare equal.
 
-A table is a *folder* of Parquet, not a single file: dlt's filesystem destination decides how many files a load takes, so `sources.yml` globs `<table>/*.parquet` and the manifest lists a table's files rather than one name.
+DuckLake decides how a bronze table is stored. A large one becomes Parquet under the data path; a small one may be inlined into the catalog instead. Neither is addressed by hand: `sources.yml` names a database and a schema, and the catalog does the rest.
 
 *Data flow* is physical movement (the diagram above). *Data lineage* is logical dependency between tables — see [Data Modeling](data_modelling.md), or `dbt docs` for the interactive DAG.
 
@@ -68,19 +60,19 @@ A table is a *folder* of Parquet, not a single file: dlt's filesystem destinatio
 
 | Component      | Technology                      | Purpose                                                     |
 | -------------- | ------------------------------- | ----------------------------------------------------------- |
-| Source         | SQL Server 2025                 | WWI OLTP, read from a frozen database snapshot              |
-| Extraction     | dlt 1.30 → Parquet on the store | The declared tables, checksummed into`data/snapshots/manifest.json` |
-| Object store   | SeaweedFS (S3 API)              | The bronze snapshot and the lake's Parquet                  |
+| Source         | SQL Server 2025                 | WWI OLTP, read in place by a read-only login                |
+| Extraction     | dlt 1.30, ducklake destination  | The declared tables, loaded into the lake's`bronze` schema |
+| Object store   | SeaweedFS (S3 API)              | The lake's data files                                       |
 | Warehouse      | DuckLake on DuckDB              | Parquet on the store, catalog in Postgres 16                |
 | Transformation | dbt Core 1.12 + dbt-duckdb 1.11 | SQL-based ELT                                               |
 | Tooling        | Python 3.12,`wwi` CLI         | Extraction, verification, inspection                        |
 | Visualization  | Looker Studio                   | Frozen against the BigQuery warehouse                       |
 
-The `dev` (BigQuery) profile target is kept as an exhibit. `dbt-bigquery` is **not** installed: it pulled 45 packages into the lock file for a target nothing builds against.
+`profiles.sample.yml` declares one target, `lake`. The BigQuery build is history, not a target this repository can run — `dbt-bigquery` is deliberately not installed.
 
 **The object store is a replaceable detail, and that was tested rather than assumed.** The stack was brought up against a second S3-compatible implementation (RustFS) with one compose override changing only the image — same credentials, bucket, profile and models — and all relations came out with identical row counts. The override is not kept: it was evidence, not something that runs.
 
-**`-volume.max=10` is a real ceiling.** At `volumeSizeLimitMB=1024` that is 10 GiB, and every build writes a full copy of each table into the lake. There is no retention command — one was written, never needed on a store holding a single snapshot, and deleted. A full store is reset with `make clean_storage` and rebuilt.
+**`-volume.max=10` is a real ceiling.** At `volumeSizeLimitMB=1024` that is 10 GiB, and every build writes a full copy of each table into the lake. There is no retention command — one was written, never needed at this size, and deleted. A full store is reset with `make clean_storage` and rebuilt.
 
 ## Boundaries
 
@@ -106,7 +98,7 @@ See [Data Modeling](data_modelling.md).
 
 ## Key decisions
 
-**1. ELT over ETL.** Extraction lands Parquet and transforms nothing; dbt does it all in SQL, in version control. Nothing is loaded — DuckDB reads the Parquet where it sits.
+**1. ELT over ETL.** Extraction lands the source as it is and transforms nothing; dbt does it all in SQL, in version control.
 
 **1b. Plain EL, per-table, with no cross-table transaction.** An earlier build read every table inside one SQL Server snapshot-isolation transaction and asserted the transaction id had not changed, so the snapshot was provably one instant. It was removed. The guarantee is real and the technique is the right one on a live 24/7 OLTP — but this source is a static sample database, and the extraction separately asserts the data generator is off, so the protection had no threat to protect against. What it cost was concrete: it forced one `pipeline.extract()` call per resource, a local staging directory and a hand-written flattening step, none of which dlt needs. The trade is stated rather than hidden: the referential tests still pass, but now because the source does not move, not because the pipeline guarantees it. On a source that does move, put it back.
 
@@ -114,16 +106,20 @@ See [Data Modeling](data_modelling.md).
 
 **3. One surrogate key.** `dim_stock_item.stock_item_sk`, MD5 over the natural key; every other dimension is keyed on its natural key. Its original justification — versioning `unit_price` — was **falsified by measurement**: no stock item has ever had more than one distinct price, and the data generator never writes to that table, so extending the data cannot create history either. Kept because it costs nothing and a later Type 2 build would want it.
 
+**4. The extraction contract carries only what a model reads.** `tables.yml` and the dbt models move together: a table enters the contract in the same change as the model that selects from it, and a unit test fails when `tables.yml` and `sources.yml` stop naming the same set. Six tables were once carried for a supply-chain fact that does not exist; they were removed. Adding them back is a YAML edit in the pull request that needs them.
+
+**5. Bronze in the lake, not beside it.** An earlier build wrote bronze as bare Parquet under a per-run prefix and described it with a hand-written, committed `manifest.json` carrying a SHA256, a row count and the column types of every file. That bought integrity checking the object store and the catalog now provide, and it cost: a run id in every path, a `SNAPSHOT_ID` variable, a generated `sources.yml` that had to be regenerated and committed after each extraction, and two dbt objects that read a JSON file off local disk. dlt's DuckLake destination writes into the same catalog dbt builds in, so all of that is the table format's job. The trade is stated rather than hidden: per-file checksums are gone, which is normal inside one system and would not be across an organisational boundary.
+
 ## Data quality
 
 | Guard              | What it covers                                                                                                                                                                                 |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| dbt tests          | `unique` + `not_null` on every dimension key, a `relationships` test on every foreign key from the fact, manifest row-count parity across every staging model, a mart grain test, a `dim_date` calendar test |
+| dbt tests          | `unique` + `not_null` on every dimension key, a `relationships` test on every foreign key from the fact, a bronze row-count parity test on every staging model, a mart grain test, a `dim_date` calendar test |
 | Enforced contract  | `mart_sales_order_line` declares every column and type; an upstream change to its shape fails the build                                                                                   |
 | Determinism        | `make compare` builds twice and diffs every relation, naming the column when one differs. 0 differing                                                                                        |
-| Snapshot integrity | `make verify` checks Parquet against the SHA256, row counts and column types in the manifest                                                                                                 |
-| Static gates       | `make check` — ruff, import contracts, mypy, unit tests, `sources.yml` drift — plus `dbt parse`, which compiles every model without a database. That is all CI runs: the warehouse is built from a source CI cannot reach, so the tests above run on a developer machine |
+| Load integrity     | `make extract` counts the source before the load and the lake after it, and refuses a difference — row-level security filters silently, and usually only part of a table |
+| Static gates       | `make check` — ruff, import contracts, mypy, unit tests including `sources.yml` against `tables.yml` — plus `dbt parse`, which compiles every model without a database. That is all CI runs: the warehouse is built from a source CI cannot reach, so the tests above run on a developer machine |
 
-Source freshness is not configured and cannot be: the source is a frozen snapshot, so freshness has nothing to measure.
+Source freshness is not configured. Bronze is a relation now, so `loaded_at_field` would work — but a threshold on a manually triggered load against a static sample database would be a number invented to have one.
 
 Naming and SQL style: [Naming Convention](naming_convention.md).

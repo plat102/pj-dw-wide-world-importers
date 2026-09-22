@@ -6,7 +6,7 @@
 
 ## Quick start
 
-**This repository ships no data.** The warehouse is built from a snapshot of a live source, so you need a SQL Server holding the [Wide World Importers](https://learn.microsoft.com/en-us/sql/samples/wide-world-importers-what-is) sample database, plus `git`, `make`, [uv](https://docs.astral.sh/uv/) and a container runtime.
+**This repository ships no data.** The warehouse is built from a live source, so you need a SQL Server holding the [Wide World Importers](https://learn.microsoft.com/en-us/sql/samples/wide-world-importers-what-is) sample database, plus `git`, `make`, [uv](https://docs.astral.sh/uv/) and a container runtime.
 
 ```bash
 # 1. Credentials. Fill in S3_ACCESS_KEY, S3_SECRET_KEY, CATALOG_USER, CATALOG_PASSWORD
@@ -19,7 +19,7 @@ mkdir -p ~/.dbt && cp profiles.sample.yml ~/.dbt/profiles.yml
 # 3. Environment and dbt packages, then the object store and the DuckLake catalog.
 make install deps up
 
-# 4. Source → bronze on the store, then the manifest, sources.yml and a read-back check.
+# 4. Source → the lake's bronze schema, in one dlt run.
 make extract
 
 # 5. Build the models and run every test, then print every relation with its shape.
@@ -35,11 +35,11 @@ The extraction needs a read-only login on the source; `infrastructure/mssql/prep
 | -------------- | ------------------------------------ | ---------------------------------------------------------- |
 | Source         | SQL Server                           | WWI OLTP, one read-only login                              |
 | Extraction     | dlt                                  | declared tables straight to Parquet on the object store    |
-| Storage        | S3-compatible object store           | snapshot under`bronze/<id>/`, lake under `lake/`       |
+| Storage        | S3-compatible object store           | the lake's data files, under `lake/`                   |
 | Warehouse      | DuckLake (DuckDB + Postgres catalog) | raw → staging → analytics → mart                        |
 | Transformation | dbt Core                             | dimensional models, enforced contract on the mart          |
 
-**Problem:** analytical queries slow the transactional system; reports need IT. **Solution:** a dimensional warehouse reproducible from a checksummed snapshot.
+**Problem:** analytical queries slow the transactional system; reports need IT. **Solution:** a dimensional warehouse reproducible from one command against the source.
 
 ![Data Warehouse ERD](docs/image/dwh_erd.png)
 
@@ -55,16 +55,12 @@ flowchart LR
 
     subgraph ingest["⚡ Extraction"]
         direction TB
-        DLT[dlt<br/>sql_table → filesystem<br/>destination]
-        MANIFEST[manifest.json<br/>checksums, row counts, types]
-    end
-
-    subgraph store["🪣 Object store"]
-        BRONZE[bronze/<snapshot-id>/<br/>Parquet]
+        DLT[dlt<br/>sql_table → ducklake<br/>destination]
     end
 
     subgraph dwh["🦆 DuckLake<br>lakehouse"]
         direction TB
+        BRONZE[Bronze<br/>bronze]
         STG[Staging<br/>main_stg]
         ANALYTICS[Analytics<br/>main_dwh]
         MART[Mart<br/>main_mart]
@@ -78,14 +74,12 @@ flowchart LR
     end
 
     OLTP --> DLT
-    DLT -->|writes s3:// directly| BRONZE
-    BRONZE -->|described after the load| MANIFEST
-    BRONZE -->|dbt reads s3://| STG
+    DLT -->|writes into the lake| BRONZE
+    BRONZE -->|dbt| STG
     MART -.-> LOOKER
 
     style OLTP fill:#E8E8E8,stroke:#666,stroke-width:2px,color:#333
     style DLT fill:#FFE4B5,stroke:#FFA500,stroke-width:2px,color:#333
-    style MANIFEST fill:#FFE4B5,stroke:#FFA500,stroke-width:2px,color:#333
     style BRONZE fill:#FFF9C4,stroke:#FBC02D,stroke-width:2px,color:#333
     style STG fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
     style ANALYTICS fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
@@ -104,21 +98,22 @@ One catalog; the layers are schemas inside it.
 
 ## Filling bronze
 
-`make extract` is the only way, and it is one dlt run: every declared table read from the source and written straight to `s3://$S3_BUCKET/bronze/<snapshot-id>/<table>/`. Nothing is staged locally and there is no upload step. The manifest is then written from what actually landed, read back through the S3 API, so its checksums cover the published bytes.
+`make extract` is the only way, and it is one dlt run: every declared table read from the source and loaded into the `bronze` schema of the lake, through dlt's DuckLake destination. Nothing is staged locally, nothing is uploaded, and nothing describes what landed except the lake's own catalog.
 
-**The Parquet snapshot is not in this repository and never will be** — only its manifest is. That manifest is the whole contract: SHA256, row count and column types per table, and `make verify` checks the store against it without touching the source.
+**Bronze is a layer of the warehouse, not a pile of files beside it.** One catalog holds all four — `bronze`, `main_stg`, `main_dwh`, `main_mart` — so `source()` resolves to a relation, the extraction gets schema evolution and time travel for free, and there is no snapshot id in any path.
 
-A new extraction lands under a new snapshot id, beside the previous one rather than over it. `SNAPSHOT_ID` points a build at one; unset, `sources.yml` defaults to the id its manifest names.
+Every bronze row carries dlt's `_dlt_load_id`, the unix timestamp of the load that wrote it. That is what staging turns into `processed_at`, and what makes two builds of one load compare equal.
+
+The contract carries only the tables a model reads: `src/ingestion/tables.yml` and the dbt models move together, and a unit test fails when `sources.yml` and that file stop naming the same set.
 
 ## Commands
 
 ```bash
-make check      # lint, import boundaries, types, unit tests, sources.yml drift
+make check      # lint, import boundaries, types, unit tests
 make build      # dbt build against whatever is in bronze
-make verify     # published snapshot against its manifest
 make shape      # every relation with its row and column count
 make compare    # build twice, diff every table
-make extract    # refresh the snapshot from SQL Server
+make extract    # reload bronze from SQL Server
 make down       # stop the stack, keeping data (clean_storage deletes it)
 ```
 
@@ -127,14 +122,11 @@ make down       # stop the stack, keeping data (clean_storage deletes it)
 ```
 ├── docs/                    # Project documentation
 ├── infrastructure/          # Container config, source login SQL
-├── data/
-│   └── snapshots/           # manifest.json — the snapshot contract
 ├── src/
 │   ├── cli/                 # The `wwi` command
 │   ├── config/              # Settings; the only place an env var is named
 │   ├── connectors/          # mssql, s3, ducklake
-│   ├── contracts/           # Manifest, paths, types, dbt sources projection
-│   ├── ingestion/           # Source → Parquet → object store
+│   ├── ingestion/           # Source → the lake's bronze schema
 │   ├── warehouse/           # Reading the built warehouse
 │   └── utils/
 ├── tests/                   # unit/ needs nothing; integration/ needs the stack

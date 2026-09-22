@@ -23,7 +23,7 @@ The warehouse is a DuckLake lakehouse -- Parquet on the object store, catalog in
 
 | Schema       | Layer        | Contents                                                        |
 | ------------ | ------------ | --------------------------------------------------------------- |
-| —            | Source       | Parquet on the object store under `bronze/<snapshot-id>/`, read in place |
+| `bronze`   | Source       | One table per entry in `src/ingestion/tables.yml`, loaded by dlt |
 | `main_stg`   | Staging      | One view per source table, plus intermediate joins              |
 | `main_dwh`   | Dimensional  | The star schema: dimensions, role-playing views, the fact       |
 | `main_mart`  | Mart         | One denormalised table for BI                                   |
@@ -56,14 +56,14 @@ One row per sales order line. **Grain**: `sales_order_line_key`, tested `unique`
 | `unit_price`                                  | DECIMAL(18,2)            | measure  | Non-additive per row; weight by quantity                 |
 | `tax_rate`                                    | DECIMAL(18,3)            | measure  | Non-additive; a percentage                               |
 | `is_undersupply_backordered`                  | BOOLEAN                  | flag     |                                                           |
-| `sales_order_line_processed_at`               | TIMESTAMP WITH TIME ZONE | metadata | The snapshot's timestamp, from the manifest — not a clock |
+| `sales_order_line_processed_at`               | TIMESTAMP WITH TIME ZONE | metadata | When the bronze load that wrote the row ran, from `_dlt_load_id` — not a clock |
 
 Every foreign key carries a `relationships` test. `order_date_key` is `not_null`; the other three date keys are not, because a line that has not shipped has no delivery or picking date.
 
 ## Dimensions
 
 ### `dim_customer`
-**Grain**: one row per customer. **Type 0**: no history is tracked, and the snapshot carries only the current version of each row, so there is none to track.
+**Grain**: one row per customer. **Type 0**: no history is tracked, and bronze carries only the current version of each row, so there is none to track.
 
 | Column                               | Type          | Notes                                          |
 | ------------------------------------ | ------------- | ---------------------------------------------- |
@@ -184,4 +184,4 @@ For current numbers:
 make shape
 ```
 
-`data/snapshots/manifest.json` is authoritative for **source** row counts, and `assert_staging_matches_manifest` fails the build if the warehouse disagrees with it. So the numbers are asserted, not just available.
+Every staging model carries `matches_bronze_rowcount`, which fails the build if it disagrees with the bronze table it reads. So the numbers are asserted, not just available.
