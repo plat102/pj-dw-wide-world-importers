@@ -1,16 +1,9 @@
-{{ config(materialized='table', schema='mart') }}
-
--- The column list is written out rather than generated. It used to come from six
--- get_filtered_columns_in_relation calls, three of which were dead -- the person, stock item
--- and package type lists were computed and never used, so the columns they were meant to
--- produce were hand-written a few lines below anyway. Worse, a generated list means an
--- upstream column arrives here silently: the mart is the published surface, so a new column
--- should be a decision, not a side effect. `contract: enforced` in schema.yml holds this
--- list to what is declared there.
+-- The column list is written out, not generated: this is the published surface, so a new column
+-- should be a decision. `contract: enforced` in schema.yml holds it to what is declared there.
 
 select
-    -- Fact measures and degenerate dimensions. Every foreign key is deliberately absent:
-    -- the mart carries the attribute, so a consumer never needs to join back.
+    -- Fact measures and degenerate dimensions. Foreign keys are absent on purpose: the mart
+    -- carries the attribute, so a consumer never needs to join back.
     fsol.sales_order_line_key
     , fsol.sales_order_key
     , fsol.quantity
@@ -68,8 +61,8 @@ select
     -- Package type
     , dim_package_type.package_type_name as package_type_package_type_name
 
-    -- Dates. Order date and expected delivery date get the full calendar; the two
-    -- picking-completed dates get only the date itself, because nothing asks for more.
+    -- Dates. Order and expected delivery get the full calendar; the picking-completed dates
+    -- get only the date itself.
     , dim_order_date.full_date as order_date_full_date
     , dim_expected_delivery_date.full_date as expected_delivery_date_full_date
     , dim_order_date.year as order_date_year

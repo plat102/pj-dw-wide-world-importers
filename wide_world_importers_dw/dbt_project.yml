@@ -1,16 +1,9 @@
-
-# Name your project! Project names should contain only lowercase characters
-# and underscores. A good package name should reflect your organization's
-# name or the intended use of these models
 name: 'wide_world_importers_dw'
 version: '1.0.0'
 
-# This setting configures which "profile" dbt uses for this project.
+# Must match the top-level key in profiles.sample.yml.
 profile: 'wide_world_importers_dw'
 
-# These configurations specify where dbt should look for different types of files.
-# The `model-paths` config, for example, states that models in this project can be
-# found in the "models/" directory. You probably won't need to change these!
 model-paths: ["models"]
 analysis-paths: ["analyses"]
 test-paths: ["tests"]
@@ -22,11 +15,8 @@ clean-targets:         # directories to be removed by `dbt clean`
   - "target"
   - "dbt_packages"
 
-
-# Configuring models
-# Full documentation: https://docs.getdbt.com/docs/configuring-models
-
-# Per-directory defaults. A model overrides them with its own `{{ config(...) }}`.
+# Per-directory defaults. A model overrides them with its own `{{ config(...) }}` only when it
+# needs something different -- see docs/naming_convention.md.
 models:
   wide_world_importers_dw:
     # One view per source table: renames and casts, no joins.
@@ -41,8 +31,7 @@ models:
     analytics:
       +materialized: table
       +schema: dwh
-    # Mart Area
+    # The published, denormalised surface.
     marts:
       +materialized: table
       +schema: mart
-      

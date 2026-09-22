@@ -3,6 +3,6 @@ with raw as (
     from {{ source('wwi_raw', 'warehouse__colors') }}
 )
 select
-    color_id AS color_key
-    , color_name AS color_name
+    color_id as color_key
+    , color_name
 from raw

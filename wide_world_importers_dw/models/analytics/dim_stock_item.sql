@@ -1,9 +1,5 @@
--- The surrogate key is here so SCD Type 2 can later give one stock item several rows.
--- Its original justification was versioning UnitPrice, and that turned out to be false: no item
--- in the source has ever had more than one distinct price, and the data generator never writes
--- to that table at all. The key stays because it costs nothing and nothing else depends on it --
--- not because this source has history to track. When SCD2 lands, the valid-from timestamp joins
--- the hash; today the natural key is the whole input.
+-- The surrogate key is here so SCD Type 2 can later give one stock item several rows. Today the
+-- natural key is the whole input; when SCD2 lands, the valid-from timestamp joins the hash.
 
 select
     {{ dbt_utils.generate_surrogate_key(['stg_warehouse_stock_item.stock_item_key']) }} as stock_item_sk

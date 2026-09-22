@@ -1,8 +1,4 @@
-{#
-    The timestamp a row was processed, taken from the snapshot manifest rather than the clock.
-    `current_timestamp` made every staging view change on every build, so no two builds of the
-    same snapshot could be compared. One snapshot now has exactly one processed_at.
-#}
+{# The manifest's timestamp, not `current_timestamp`, so two builds of one snapshot compare equal. #}
 {% macro snapshot_processed_at() -%}
     (
         select cast(snapshot_timestamp as timestamptz)

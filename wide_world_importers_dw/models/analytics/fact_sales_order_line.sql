@@ -10,10 +10,8 @@ with order_line_joined as (
         , stg_sales_order_line.picked_quantity
         , stg_sales_order_line.picking_completed_date_key as sales_order_line_picking_completed_date_key
         , stg_sales_order.customer_key
-        -- Bill-to belongs on the fact, not on the customer dimension: the mart used to reach
-        -- it through dim_customer, which made the wide table depend on a dimension join to
-        -- resolve one of its own keys. Sales.Orders does not carry it, so it is resolved here
-        -- from the customer, once, on a unique key.
+        -- Bill-to belongs on the fact, but Sales.Orders does not carry it: resolved here from
+        -- the customer, once, on a unique key.
         , stg_sales_customer.bill_to_customer_key
         , stg_sales_order.salesperson_key
         , stg_sales_order.picked_by_person_key
