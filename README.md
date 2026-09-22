@@ -6,22 +6,35 @@
 
 ## Quick start
 
-Needs `git`, `make`, [uv](https://docs.astral.sh/uv/) and a container runtime. No cloud account, no SQL Server, nothing to fill in.
+**This repository ships no data.** The warehouse is built from a snapshot of a live source, so you need a SQL Server holding the [Wide World Importers](https://learn.microsoft.com/en-us/sql/samples/wide-world-importers-what-is) sample database, plus `git`, `make`, [uv](https://docs.astral.sh/uv/) and a container runtime.
 
 ```bash
-make demo
+# 1. Credentials. Fill in S3_ACCESS_KEY, S3_SECRET_KEY, CATALOG_USER, CATALOG_PASSWORD
+#    and MSSQL_CONNECTION_STRING. Everything else already has a working default.
+cp .env.example .env
+
+# 2. A dbt profile where dbt looks for one. Every value in it comes from the environment.
+mkdir -p ~/.dbt && cp profiles.sample.yml ~/.dbt/profiles.yml
+
+# 3. Environment and dbt packages, then the object store and the DuckLake catalog.
+make install deps up
+
+# 4. Source → bronze on the store, then the manifest, sources.yml and a read-back check.
+make extract
+
+# 5. Build the models and run every test, then print every relation with its shape.
+make build
+make shape
 ```
 
-Installs the environment and dbt packages, writes a `.env` with generated local credentials, brings up the object store and catalog, publishes the committed fixture, verifies every object against its checksum, builds 23 models, runs 44 tests, prints every relation.
-
-It refuses rather than guesses twice: if `MSSQL_CONNECTION_STRING` is set, and if the lake already holds a warehouse this fixture did not build.
+The extraction needs a read-only login on the source; `infrastructure/mssql/prepare_extraction_login.sql` creates one. It grants `db_datareader` and nothing beyond it — no writes, no schema changes, no CDC.
 
 ## Overview
 
 | Layer          | Technology                           | Role                                                       |
 | -------------- | ------------------------------------ | ---------------------------------------------------------- |
 | Source         | SQL Server                           | WWI OLTP, one read-only login                              |
-| Extraction     | dlt                                  | 21 tables to Parquet in one snapshot-isolation transaction |
+| Extraction     | dlt                                  | declared tables straight to Parquet on the object store    |
 | Storage        | S3-compatible object store           | snapshot under`bronze/<id>/`, lake under `lake/`       |
 | Warehouse      | DuckLake (DuckDB + Postgres catalog) | raw → staging → analytics → mart                        |
 | Transformation | dbt Core                             | dimensional models, enforced contract on the mart          |
@@ -42,7 +55,7 @@ flowchart LR
 
     subgraph ingest["⚡ Extraction"]
         direction TB
-        DLT[dlt<br/>one snapshot-isolation<br/>transaction]
+        DLT[dlt<br/>sql_table → filesystem<br/>destination]
         MANIFEST[manifest.json<br/>checksums, row counts, types]
     end
 
@@ -65,8 +78,8 @@ flowchart LR
     end
 
     OLTP --> DLT
-    DLT --> MANIFEST
-    DLT --> BRONZE
+    DLT -->|writes s3:// directly| BRONZE
+    BRONZE -->|described after the load| MANIFEST
     BRONZE -->|dbt reads s3://| STG
     MART -.-> LOOKER
 
@@ -84,26 +97,24 @@ One catalog; the layers are schemas inside it.
 
 | Schema           | Holds                                          |
 | ---------------- | ---------------------------------------------- |
-| `bronze/<id>/` | Parquet on the object store, read in place     |
+| `bronze/<id>/<table>/` | Parquet on the object store, read in place |
 | `main_stg`     | staging (`stg_`) and intermediate (`int_`) |
 | `main_dwh`     | dimensions and facts (`dim_`, `fact_`)     |
 | `main_mart`    | denormalized reporting tables (`mart_`)      |
 
-## Three ways to seed
+## Filling bronze
 
-| Command                    | Data                                                | Use                                           |
-| -------------------------- | --------------------------------------------------- | --------------------------------------------- |
-| `make demo`              | committed fixture, ~2.4 MB, real rows and checksums | fresh clone; what CI builds                   |
-| `make seed_bronze`       | the real snapshot from`data/raw/`                 | the full warehouse                            |
-| `make seed_bronze_empty` | zero-row Parquet with the manifest's schema         | "did a column break", not "is the data right" |
+`make extract` is the only way, and it is one dlt run: every declared table read from the source and written straight to `s3://$S3_BUCKET/bronze/<snapshot-id>/<table>/`. Nothing is staged locally and there is no upload step. The manifest is then written from what actually landed, read back through the S3 API, so its checksums cover the published bytes.
 
-**The Parquet snapshot is not in this repository and never will be** — only its manifest is. The fixture in `data/demo/` is a reduced derivative with its own manifest and its own real checksums, so a clone runs the same seed-and-verify path. Nothing downstream can tell them apart; `SNAPSHOT_ID` selects between them.
+**The Parquet snapshot is not in this repository and never will be** — only its manifest is. That manifest is the whole contract: SHA256, row count and column types per table, and `make verify` checks the store against it without touching the source.
+
+A new extraction lands under a new snapshot id, beside the previous one rather than over it. `SNAPSHOT_ID` points a build at one; unset, `sources.yml` defaults to the id its manifest names.
 
 ## Commands
 
 ```bash
 make check      # lint, import boundaries, types, unit tests, sources.yml drift
-make build      # dbt build against whatever is seeded
+make build      # dbt build against whatever is in bronze
 make verify     # published snapshot against its manifest
 make shape      # every relation with its row and column count
 make compare    # build twice, diff every table
@@ -117,7 +128,6 @@ make down       # stop the stack, keeping data (clean_storage deletes it)
 ├── docs/                    # Project documentation
 ├── infrastructure/          # Container config, source login SQL
 ├── data/
-│   ├── demo/                # Committed fixture
 │   └── snapshots/           # manifest.json — the snapshot contract
 ├── src/
 │   ├── cli/                 # The `wwi` command
@@ -126,7 +136,6 @@ make down       # stop the stack, keeping data (clean_storage deletes it)
 │   ├── contracts/           # Manifest, paths, types, dbt sources projection
 │   ├── ingestion/           # Source → Parquet → object store
 │   ├── warehouse/           # Reading the built warehouse
-│   ├── demo/                # The fresh-clone path
 │   └── utils/
 ├── tests/                   # unit/ needs nothing; integration/ needs the stack
 ├── wide_world_importers_dw/ # dbt project
@@ -141,7 +150,7 @@ make down       # stop the stack, keeping data (clean_storage deletes it)
 | [Technical Design](docs/technical_design.md)    | Architecture and stack                    |
 | [Data Modeling](docs/data_modelling.md)         | Dimensional model                         |
 | [Data Catalog](docs/data_warehouse_catalog.md)  | Tables and columns                        |
-| [Naming Conventions](docs/naming_convention.md) | Standards and SQL style                   |
+| [Naming Conventions](docs/naming_convention.md) | Standards, SQL style, Markdown formatting |
 
 ## Sample reports — a frozen exhibit
 

@@ -32,8 +32,7 @@ The BigQuery datasets `wwi_raw` / `wwi_stg` / `wwi_dwh` / `wwi_mart` were the ea
 
 ## Fact table
 
-### `fact_sales_order_line` — 20 columns
-
+### `fact_sales_order_line`
 One row per sales order line. **Grain**: `sales_order_line_key`, tested `unique` and `not_null`. Source: `Sales.OrderLines` joined to `Sales.Orders`, with `bill_to_customer_key` resolved from `Sales.Customers`.
 
 | Column                                        | Type                     | Role     | Notes                                                    |
@@ -59,12 +58,11 @@ One row per sales order line. **Grain**: `sales_order_line_key`, tested `unique`
 | `is_undersupply_backordered`                  | BOOLEAN                  | flag     |                                                           |
 | `sales_order_line_processed_at`               | TIMESTAMP WITH TIME ZONE | metadata | The snapshot's timestamp, from the manifest — not a clock |
 
-Ten foreign keys carry `relationships` tests. `order_date_key` is `not_null`; the other three date keys are not, because a line that has not shipped has no delivery or picking date.
+Every foreign key carries a `relationships` test. `order_date_key` is `not_null`; the other three date keys are not, because a line that has not shipped has no delivery or picking date.
 
 ## Dimensions
 
-### `dim_customer` — 33 columns
-
+### `dim_customer`
 **Grain**: one row per customer. **Type 0**: no history is tracked, and the snapshot carries only the current version of each row, so there is none to track.
 
 | Column                               | Type          | Notes                                          |
@@ -103,8 +101,7 @@ Ten foreign keys carry `relationships` tests. `order_date_key` is `not_null`; th
 | `postal_address`                     | VARCHAR       | Two source lines concatenated                  |
 | `postal_postal_code`                 | VARCHAR       |                                                |
 
-### `dim_stock_item` — 18 columns
-
+### `dim_stock_item`
 **Grain**: one row per stock item today. **Type 0**, with a surrogate key in place for a later Type 2 build.
 
 | Column                     | Type          | Notes                                                        |
@@ -130,8 +127,7 @@ Ten foreign keys carry `relationships` tests. `order_date_key` is `not_null`; th
 
 `unit_price` has **no history in this data.** The source table is system-versioned and its archive is not empty, but **no stock item has ever had more than one distinct price** — the only column that ever changes is a JSON tag blob. The reason is structural rather than incidental: the data generator never writes to that table at all, so extending the data forward cannot create history either. The surrogate key is kept because it costs nothing, not because there is history to version.
 
-### `dim_person` — 8 columns
-
+### `dim_person`
 **Grain**: one row per person. Covers system users, employees and salespeople in one dimension; the fact points at it three times, through the three role-playing views below.
 
 | Column                 | Type    | Notes                |
@@ -145,15 +141,13 @@ Ten foreign keys carry `relationships` tests. `order_date_key` is `not_null`; th
 | `phone_number`         | VARCHAR |                      |
 | `email_address`        | VARCHAR |                      |
 
-### `dim_package_type` — 2 columns
-
+### `dim_package_type`
 | Column              | Type    | Notes                |
 | ------------------- | ------- | -------------------- |
 | `package_type_key`  | BIGINT  | `unique`, `not_null` |
 | `package_type_name` | VARCHAR |                      |
 
-### `dim_date` — 12 columns
-
+### `dim_date`
 **Grain**: one row per day, 2000-01-01 to 2050-12-31. Generated, not sourced. Pinned by `tests/assert_dim_date_calendar.sql` over eight dates chosen at the three places the arithmetic is easiest to get wrong.
 
 | Column           | Type    | Notes                                                              |
@@ -173,11 +167,10 @@ Ten foreign keys carry `relationships` tests. `order_date_key` is `not_null`; th
 
 ## Mart
 
-### `mart_sales_order_line` — 70 columns
+### `mart_sales_order_line`
+Same grain as the fact. Every column and its type is declared in `wide_world_importers_dw/models/marts/sales/schema.yml` under `contract: enforced`, which is the authoritative list — an upstream column that would change it fails the build rather than arriving here silently. It is not repeated in this file, because two copies of one column list is how a catalog starts lying.
 
-Same grain as the fact. Every column and its type is declared in `wide_world_importers_dw/models/marts/sales/schema.yml` under `contract: enforced`, which is the authoritative list — an upstream column that would change it fails the build rather than arriving here silently. It is not repeated in this file, because two copies of a 70-column list is how a catalog starts lying.
-
-Shape, in order: 9 fact measures and degenerate dimensions, 28 `customer_*` attributes, `bill_to_customer_name`, 3 person names in their roles, 4 stock item attributes, 1 package type, then 24 date attributes — the full calendar for the order date and the expected delivery date, and `full_date` alone for the two picking-completed dates.
+Shape, in order: the fact's measures and degenerate dimensions, the `customer_*` attributes, `bill_to_customer_name`, the person names in their three roles, the stock item and package type attributes, then the date attributes — the full calendar for the order date and the expected delivery date, and `full_date` alone for the two picking-completed dates.
 
 **No foreign key reaches the mart.** The attribute is already here, so a consumer never joins back.
 
