@@ -16,7 +16,6 @@ dependencies = [
     "s3fs>=2024.6",           # `wwi wait-storage` probes the store through it
     "pymssql>=2.3",           # not pyodbc: needs ODBC Driver 18, broken on WSL2
     "pyarrow>=15",
-    "python-dotenv>=1.0",
     "pyyaml>=6",
 ]
 
