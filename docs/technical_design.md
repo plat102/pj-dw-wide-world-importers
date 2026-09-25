@@ -68,11 +68,13 @@ DuckLake decides how a bronze table is stored. A large one becomes Parquet under
 | Tooling        | Python 3.12,`wwi` CLI         | Extraction, verification, inspection                        |
 | Visualization  | Looker Studio                   | Frozen against the BigQuery warehouse                       |
 
-`profiles.sample.yml` declares one target, `lake`. The BigQuery build is history, not a target this repository can run — `dbt-bigquery` is deliberately not installed.
+`profiles.yml`, at the repository root and the one `make` points dbt at, declares one target, `lake`. The BigQuery build is history, not a target this repository can run — `dbt-bigquery` is deliberately not installed.
+
+**The catalog password is never in a connection string.** libpq reads it from `PGPASSWORD`, which `make` sets from `CATALOG_PASSWORD`, for the `wwi` commands, dlt and dbt alike. A connection string lands in DuckDB's error messages, which all three print and dbt also logs; out of the string, the password is never echoed and needs no quoting. Running any of them outside `make` means exporting `PGPASSWORD` yourself.
 
 **The object store is a replaceable detail, and that was tested rather than assumed.** The stack was brought up against a second S3-compatible implementation (RustFS) with one compose override changing only the image — same credentials, bucket, profile and models — and all relations came out with identical row counts. The override is not kept: it was evidence, not something that runs.
 
-**`-volume.max=10` is a real ceiling.** At `volumeSizeLimitMB=1024` that is 10 GiB, and every build writes a full copy of each table into the lake. There is no retention command — one was written, never needed at this size, and deleted. A full store is reset with `make clean_storage` and rebuilt.
+**`-volume.max=10` is a real ceiling, and one bucket reaches it at about 7 GiB.** SeaweedFS gives each bucket its own collection and grows a collection seven volumes at a time, so the `wwi` bucket holds 7 of the 10 one-GiB volumes and a second bucket could not be written to at all. Every build writes a full copy of each table into the lake. There is no retention command — one was written, never needed at this size, and deleted. A full store is reset with `make clean_storage` and rebuilt.
 
 ## Boundaries
 
