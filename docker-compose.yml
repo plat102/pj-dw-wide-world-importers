@@ -8,6 +8,7 @@ services:
     image: chrislusf/seaweedfs:4.41
     # One process runs master, volume, filer and the S3 gateway. The identity file is rendered
     # here from the environment so no key is ever committed; without one the gateway answers 403.
+    # `-s3` also starts an Iceberg REST catalog on 8181; the lake's catalog is Postgres, so it is off.
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -17,7 +18,8 @@ services:
             /etc/seaweedfs/s3-identities.template.json > /tmp/s3-identities.json
         exec weed server -dir=/data -s3 -s3.port=8333 \
           -s3.config=/tmp/s3-identities.json \
-          -master.volumeSizeLimitMB=1024 -volume.max=10
+          -master.volumeSizeLimitMB=1024 -volume.max=10 \
+          -s3.port.iceberg=0
     environment:
       # No defaults: an unset credential must stop the stack, not start one with a guessable value.
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY -- copy .env.example to .env}
