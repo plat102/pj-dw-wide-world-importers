@@ -94,8 +94,8 @@ def extract(source_db: str) -> str:
     )
     print(pipeline.run(resources(engine, specs), loader_file_format="parquet"))
 
-    # Read back through the attach the dbt build uses, not dlt's own: if the two ever stop naming
-    # one lake, it surfaces here rather than three models into a build.
+    # Read back through an attach of our own, not dlt's: if the two ever stop naming one lake, it
+    # surfaces here rather than three models into a build.
     conn = ducklake.connect()
     landed = ducklake.row_counts(conn, settings.BRONZE_SCHEMA, [e["output"] for e in specs])
     snapshot = ducklake.latest_snapshot(conn)

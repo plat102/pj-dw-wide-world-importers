@@ -59,7 +59,7 @@ def relations(
 def row_counts(
     conn: duckdb.DuckDBPyConnection, schema: str, tables: list[str]
 ) -> dict[str, int]:
-    """Row count per table, read back through the attach the warehouse build uses."""
+    """Row count per table, read back through an attach of its own, independent of dlt's."""
     present = {name for found, name, _ in relations(conn) if found == schema}
     missing = sorted(set(tables) - present)
     if missing:
