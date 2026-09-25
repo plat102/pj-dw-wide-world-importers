@@ -36,6 +36,13 @@ def _shape(_: argparse.Namespace) -> str:
     return shape.report(ducklake.connect())
 
 
+def _catalog(_: argparse.Namespace) -> str:
+    from connectors import ducklake
+    from warehouse import catalog
+
+    return catalog.report(ducklake.connect())
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="wwi", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -45,12 +52,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--interval", type=float, default=2.0)
     p.set_defaults(handler=_wait_storage)
 
-    p = sub.add_parser("extract", help="load the source into the lake's bronze schema")
+    p = sub.add_parser("extract", help="load the source into the lake's raw schema")
     p.add_argument("--source-db", default="WideWorldImporters")
     p.set_defaults(handler=_extract)
 
     p = sub.add_parser("shape", help="every relation with its row and column count")
     p.set_defaults(handler=_shape)
+
+    p = sub.add_parser("catalog", help="the column catalog, as markdown, from the manifest")
+    p.set_defaults(handler=_catalog)
 
     return parser
 

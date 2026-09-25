@@ -53,7 +53,7 @@ Build a dimensional data warehouse to support analytics for Wide World Importers
 
 **Fact Table:**
 
-- `fact_sales_order_line` - Transactional sales data at order line grain
+- `fct_sales_order_line` - Transactional sales data at order line grain
 
 **Dimension Tables:**
 
@@ -72,7 +72,7 @@ Build a dimensional data warehouse to support analytics for Wide World Importers
 
 > Detailed specifications for fact and dimension tables - grain, keys, attributes
 
-### Fact Table: `fact_sales_order_line`
+### Fact Table: `fct_sales_order_line`
 
 **Grain**: One row per order line item
 
@@ -97,7 +97,7 @@ Build a dimensional data warehouse to support analytics for Wide World Importers
 
 > Pre-joined, denormalized datasets optimized for BI consumption.
 
-### `mart_sales_order_line`
+### `obt_sales_order_line`
 
 Fully denormalized fact with all dimension attributes joined, eliminating need for BI tool to perform joins. The column list is written out, not generated: a generated list lets an upstream column reach the published surface silently, and `contract: enforced` holds the list to what is declared.
 
@@ -110,18 +110,18 @@ Fully denormalized fact with all dimension attributes joined, eliminating need f
 ```
 Source (SQL Server)          Staging (Views)              Intermediate      Analytics (Tables)
 ──────────────────────       ──────────────────────       ─────────────     ──────────────────
-sales.Orders            ──>  stg_sales_order         ──┐
-sales.OrderLines        ──>  stg_sales_order_line    ──┼───────────────────> fact_sales_order_line
+sales.Orders            ──>  stg_sales__orders         ──┐
+sales.OrderLines        ──>  stg_sales__order_lines    ──┼───────────────────> fct_sales_order_line
                                                        │
-sales.Customers         ──>  stg_sales_customer      ──┴───────────────────> dim_customer
-application.Cities      ──>  stg_application_city    ──┐                      ▲
-application.StateProv…  ──>  stg_application_state…  ──┼──> int_city_flattened┘
-application.Countries   ──>  stg_application_country ──┘
-warehouse.StockItems    ──>  stg_warehouse_stock_item ────────────────────── > dim_stock_item
-application.People      ──>  stg_application_person   ────────────────────── > dim_person
+sales.Customers         ──>  stg_sales__customers      ──┴───────────────────> dim_customer
+application.Cities      ──>  stg_application__cities    ──┐                      ▲
+application.StateProv…  ──>  stg_application_state…  ──┼──> int_cities__joined┘
+application.Countries   ──>  stg_application__countries ──┘
+warehouse.StockItems    ──>  stg_warehouse__stock_items ────────────────────── > dim_stock_item
+application.People      ──>  stg_application__people   ────────────────────── > dim_person
 warehouse.PackageTypes  ──>  stg_warehouse_package_ty ────────────────────── > dim_package_type
 (Generated)                                            ────────────────────── > dim_date
 ```
 
-`int_city_flattened` is the only intermediate model: it joins city, state/province and country so `dim_customer` can resolve an address without repeating a three-way join. It is reachable from `dim_customer` alone, which is why it is one model rather than a layer.
+`int_cities__joined` is the only intermediate model: it joins city, state/province and country so `dim_customer` can resolve an address without repeating a three-way join. It is reachable from `dim_customer` alone, which is why it is one model rather than a layer.
 

@@ -4,7 +4,7 @@ with date_array as (
 )
 
 select
-    strftime(full_date, '%Y%m%d') as date_key,
+    cast(strftime(full_date, '%Y%m%d') as integer) as date_key,
     full_date,
     extract(year from full_date) as year,
     extract(isoyear from full_date) * 100 + extract(week from full_date) as year_week,

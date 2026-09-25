@@ -1,0 +1,109 @@
+version: 2
+
+# Staging only renames and casts, so each model must agree on row count with its raw table.
+# Named rather than derived: `people` and `cities` do not follow from the singular mechanically.
+models:
+  - name: stg_application__cities
+    description: "Cities. The only geography grain the source keys addresses on. One view over `raw.application__cities`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'application__cities') }}"
+
+  - name: stg_application__countries
+    description: "Countries, with formal name and entity type. One view over `raw.application__countries`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'application__countries') }}"
+
+  - name: stg_application__delivery_methods
+    description: "Ways goods leave the warehouse. One view over `raw.application__delivery_methods`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'application__delivery_methods') }}"
+
+  - name: stg_application__people
+    description: "Everyone the source knows: system users, employees, customer contacts. One view over `raw.application__people`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'application__people') }}"
+
+  - name: stg_application__state_provinces
+    description: "States and provinces, each inside a country. One view over `raw.application__state_provinces`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'application__state_provinces') }}"
+
+  - name: stg_purchasing__suppliers
+    description: "Suppliers the warehouse buys from. One view over `raw.purchasing__suppliers`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'purchasing__suppliers') }}"
+
+  - name: stg_purchasing__supplier_categories
+    description: "How suppliers are grouped. One view over `raw.purchasing__supplier_categories`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'purchasing__supplier_categories') }}"
+
+  - name: stg_sales__buying_groups
+    description: "Buying groups customers may belong to. One view over `raw.sales__buying_groups`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'sales__buying_groups') }}"
+
+  - name: stg_sales__customers
+    description: "Customers, with both addresses and both contacts. One view over `raw.sales__customers`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'sales__customers') }}"
+
+  - name: stg_sales__customer_categories
+    description: "How customers are grouped. One view over `raw.sales__customer_categories`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'sales__customer_categories') }}"
+
+  - name: stg_sales__orders
+    description: "Sales order headers. One view over `raw.sales__orders`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'sales__orders') }}"
+
+  - name: stg_sales__order_lines
+    description: "Sales order lines -- the grain the whole star hangs off. One view over `raw.sales__order_lines`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'sales__order_lines') }}"
+
+  - name: stg_warehouse__colors
+    description: "Colours a stock item may have. One view over `raw.warehouse__colors`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'warehouse__colors') }}"
+
+  - name: stg_warehouse__package_types
+    description: "Ways stock is packaged, per unit and per outer. One view over `raw.warehouse__package_types`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'warehouse__package_types') }}"
+
+  - name: stg_warehouse__stock_items
+    description: "Products sold, with prices, packaging and supplier. One view over `raw.warehouse__stock_items`: renames only -- no joins, no casts, no filter."
+    data_tests:
+      - matches_source_rowcount:
+          arguments:
+            source_relation: "{{ source('wwi_raw', 'warehouse__stock_items') }}"

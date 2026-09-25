@@ -10,11 +10,11 @@ Naming standards and code style guidelines for consistency across the project
 
 | Layer                 | Prefix    | Materialization | Example                       |
 | --------------------- | --------- | --------------- | ----------------------------- |
-| Staging               | `stg_`  | View            | `stg_sales_customer.sql`    |
-| Intermediate          | `int_`  | View            | `int_city_flattened.sql` |
+| Staging               | `stg_`  | View            | `stg_sales__customers.sql`    |
+| Intermediate          | `int_`  | View            | `int_cities__joined.sql` |
 | Analytics (Dimension) | `dim_`  | Table           | `dim_customer.sql`          |
-| Analytics (Fact)      | `fact_` | Table           | `fact_sales_order_line.sql` |
-| Marts                 | `mart_` | Table           | `mart_sales_order_line.sql` |
+| Analytics (Fact)      | `fact_` | Table           | `fct_sales_order_line.sql` |
+| Marts                 | `mart_` | Table           | `obt_sales_order_line.sql` |
 
 ### Model Organization
 
@@ -42,8 +42,8 @@ Naming conventions for tables and columns in the warehouse
 | Type      | Convention                    | Example                              |
 | --------- | ----------------------------- | ------------------------------------ |
 | Dimension | Singular, snake_case          | `dim_customer`, `dim_stock_item` |
-| Fact      | Plural noun or process name   | `fact_sales_order_line`            |
-| Staging   | `stg_` prefix + source name | `stg_sales_customer`               |
+| Fact      | Plural noun or process name   | `fct_sales_order_line`            |
+| Staging   | `stg_` prefix + source name | `stg_sales__customers`               |
 
 ### Columns
 
@@ -69,10 +69,10 @@ The warehouse is a DuckLake lakehouse — Parquet on the object store, catalog i
 
 | Schema      | Purpose                                       |
 | ----------- | --------------------------------------------- |
-| `bronze`  | One table per entry in `src/ingestion/tables.yml`, loaded by dlt |
-| `main_stg`  | Staging (`stg_`) and intermediate (`int_`)     |
-| `main_dwh`  | Dimensional models                            |
-| `main_mart` | Business-ready denormalised tables            |
+| `raw`  | One table per entry in `src/ingestion/tables.yml`, loaded by dlt |
+| `staging`  | Staging (`stg_`) and intermediate (`int_`)     |
+| `core`  | Dimensional models                            |
+| `marts` | Business-ready denormalised tables            |
 
 `wwi_raw` / `wwi_stg` / `wwi_dwh` / `wwi_mart` were the BigQuery dataset names. That build is frozen; these are not the names in use.
 
@@ -107,7 +107,7 @@ select
     c.customer_name
     , o.order_date
 from dim_customer as c
-left join fact_sales_order_line as o
+left join fct_sales_order_line as o
     on c.customer_key = o.customer_key
 where c.is_on_credit_hold = false
 ```
@@ -123,7 +123,7 @@ with customer_orders as (
     select
         customer_key
         , count(*) as order_count
-    from fact_sales_order_line
+    from fct_sales_order_line
     group by customer_key
 ),
 
@@ -177,7 +177,7 @@ Where a reader wants numbers, give the command:
 
 - `make shape` — every relation with its row and column count
 - `make extract` — compares every table's landed row count against `COUNT(*)` at the source
-- `src/ingestion/tables.yml` — authoritative for which tables and columns bronze must carry
+- `src/ingestion/tables.yml` — authoritative for which tables and columns raw must carry
 
 This rule covers documentation describing the *present*. A dated measurement is a different thing and should carry its numbers — a stale number there is history, not a false claim.
 
@@ -185,7 +185,7 @@ This rule covers documentation describing the *present*. A dated measurement is 
 
 - Generic tests go in the `schema.yml` beside the models they cover, one per layer directory.
 - Every dimension key carries `unique` and `not_null`; every foreign key on the fact carries `relationships`. That is a rule, not a target — a new key without both is incomplete.
-- Singular tests go in `tests/`, named `assert_<what_must_be_true>.sql`. Two exist: `assert_dim_date_calendar` and `assert_mart_keeps_fact_grain`. A project generic test goes in `tests/generic/`, named for the property it asserts: `matches_bronze_rowcount`.
+- Singular tests go in `tests/`, named `assert_<what_must_be_true>.sql`. Two exist: `assert_dim_date_calendar` and `assert_obt_keeps_fact_grain`. A project generic test goes in `tests/generic/`, named for the property it asserts: `matches_source_rowcount`.
 - **A test is not trusted until it has been seen to fail.** Break the thing it guards, watch it go red, put it back. A test that has only ever been green says nothing about whether it works, and in this project one negative test passed for the wrong reason until it was provoked properly.
 - The mart's column list is a contract (`contract: enforced`) — a test in a different shape, which fails the build rather than a test run.
 

@@ -1,0 +1,12 @@
+version: 2
+
+models:
+  - name: int_cities__joined
+    description: >
+      City with its state province and country on one row. One consumer today, dim_customer's
+      delivery city; postal city becomes the second the day the two city keys diverge, which
+      assert_customer_postal_city_matches_delivery is there to catch.
+    columns:
+      - name: city_key
+        description: "Natural key from Application.Cities. Unique, or dim_customer would fan out."
+        data_tests: [unique, not_null]

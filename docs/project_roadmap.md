@@ -1,6 +1,6 @@
 # Project Roadmap
 
-**Type**: Learning project **Where it stands**: Sales Order star schema on a DuckLake lakehouse whose bronze layer dlt loads into the same catalog, with CI on every pull request **Next**: supply-chain facts, then tests on the staging layer
+**Type**: Learning project **Where it stands**: Sales Order star schema on a DuckLake lakehouse whose raw layer dlt loads into the same catalog, with CI on every pull request **Next**: supply-chain facts, then tests on the staging layer
 
 > This file describes **state**, not numbered phases. Nothing in this repository numbers phases; it says what is true instead.
 
@@ -21,11 +21,11 @@ A ✅ means there is a command whose output shows it. Anything without one is �
 
 | | Criterion | Evidence |
 |---|---|---|
-| ✅ | **Data completeness** | Every staging model's row count matches the bronze table it reads. `make build` runs `matches_bronze_rowcount` over every one |
+| ✅ | **Data completeness** | Every staging model's row count matches the raw table it reads. `make build` runs `matches_source_rowcount` over every one |
 | ✅ | **Accuracy** | Every declared column is checked to exist in the source before the load, and every table's landed row count is compared against `COUNT(*)` at the source, read back through the same attach the build uses. `make extract` |
 | ✅ | **Referential integrity** | A `relationships` test on every foreign key from the fact, `unique` + `not_null` on every dimension key. `make build` |
-| ✅ | **Flexibility** | `mart_sales_order_line` is one table, no join needed, its shape declared under `contract: enforced` |
-| ✅ | **Reproducibility** | Two builds of one bronze load, every relation compared, 0 differing: `make compare` |
+| ✅ | **Flexibility** | `obt_sales_order_line` is one table, no join needed, its shape declared under `contract: enforced` |
+| ✅ | **Reproducibility** | Two builds of one raw load, every relation compared, 0 differing: `make compare` |
 | ✅ | **Maintainability** | Transformations are SQL in version control; every claim carries its command |
 | ✅ | **Data quality** | Every test seen to fail before it was trusted: `make build`. They run on a developer machine, not in CI — see **Automation** below |
 | 🚧 | **Performance** | "Dashboard queries under 5 seconds" was never measured, and that dashboard points at the frozen BigQuery build. The build's own wall clock is what is measured |
@@ -33,11 +33,11 @@ A ✅ means there is a command whose output shows it. Anything without one is �
 | 🚧 | **Automation** | CI runs the static gates on every pull request — including `dbt parse`, so a bad `ref` or a Jinja error still fails before merge — but the dbt tests need a source database CI has no access to, so they run only on a developer machine. Nothing runs on a schedule and no orchestrator owns the extraction |
 | ❌ | **Cost efficiency as a cloud property** | No longer applicable — the warehouse runs on containers this repository starts and throws away |
 
-Two extractions of one source agree on row counts and column sets but **not on physical row order**: the source is read without `ORDER BY`, and that was measured, not assumed. So comparing two bronze loads byte for byte cannot answer "did the source change". Imposing a sort key before the write would fix that; it is not done.
+Two extractions of one source agree on row counts and column sets but **not on physical row order**: the source is read without `ORDER BY`, and that was measured, not assumed. So comparing two raw loads byte for byte cannot answer "did the source change". Imposing a sort key before the write would fix that; it is not done.
 
 ## Scope
 
-**In**: Sales Order (processing, fulfillment, delivery), from the WWI OLTP database. dbt on DuckLake, bronze included; the BigQuery build is a frozen exhibit.
+**In**: Sales Order (processing, fulfillment, delivery), from the WWI OLTP database. dbt on DuckLake, raw included; the BigQuery build is a frozen exhibit.
 
 **Out**: real-time ingestion, ML, production orchestration and monitoring.
 
@@ -51,11 +51,11 @@ SCD Type 2 was once listed as a deliverable and is **not built** — see [Change
 |---|---|
 | Sales Order star schema | `make build` |
 | Extraction of every declared table straight to the object store, in one dlt run | `make extract` |
-| An extraction contract — which tables and columns bronze must carry | `src/ingestion/tables.yml`, checked by `make check` and `make extract` |
-| dbt tests: dimension keys, referential integrity, bronze row-count parity, mart grain, calendar arithmetic | `make build` |
+| An extraction contract — which tables and columns raw must carry | `src/ingestion/tables.yml`, checked by `make check` and `make extract` |
+| dbt tests: dimension keys, referential integrity, raw row-count parity, mart grain, calendar arithmetic | `make build` |
 | A deterministic build | `make compare` |
 | An enforced contract on the mart's columns | `make build` |
-| The `bronze` schema of the lake, one table per declared source table | `make extract` |
+| The `raw` schema of the lake, one table per declared source table | `make extract` |
 | Static gates on every pull request: lint, import contracts, types, unit tests, dbt compile | `.github/workflows/build.yml` |
 | Enforced architectural boundaries, as import contracts | `make lint` |
 | Looker Studio dashboards | against the frozen BigQuery build |

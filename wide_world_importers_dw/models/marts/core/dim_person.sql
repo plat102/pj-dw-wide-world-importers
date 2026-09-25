@@ -7,4 +7,4 @@ select
     , is_salesperson
     , phone_number
     , email_address
-from {{ ref('stg_application_person') }}
+from {{ ref('stg_application__people') }}

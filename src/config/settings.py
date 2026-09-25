@@ -19,7 +19,7 @@ DBT_DIR = REPO_ROOT / "wide_world_importers_dw"
 TABLES_CONFIG = REPO_ROOT / "src" / "ingestion" / "tables.yml"
 
 # The lake schema `make extract` writes and dbt's sources read.
-BRONZE_SCHEMA = "bronze"
+RAW_SCHEMA = "raw"
 # The schema holding the lake's catalog tables. dlt and dbt must name the same one, or each
 # attaches a lake of its own inside one Postgres.
 METADATA_SCHEMA = "public"
@@ -68,7 +68,7 @@ def lake_prefix() -> str:
 
 
 def data_path() -> str:
-    """The lake root. Every layer lives in it, bronze included, as schemas of one catalog."""
+    """The lake root. Every layer lives in it, raw included, as schemas of one catalog."""
     return f"s3://{bucket()}/{lake_prefix()}/"
 
 

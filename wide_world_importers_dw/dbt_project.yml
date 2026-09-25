@@ -16,19 +16,17 @@ clean-targets:         # directories to be removed by `dbt clean`
 # needs something different -- see docs/naming_convention.md.
 models:
   wide_world_importers_dw:
-    # One view per source table: renames and casts, no joins.
+    # One view per source table: renames only, source semantics kept.
     staging:
       +materialized: view
-      +schema: stg
-    # Joins reused by more than one downstream model.
+      +schema: staging
+    # Joins reused by more than one downstream model -- or about to be.
     intermediate:
       +materialized: view
-      +schema: stg
-    # The star schema.
-    analytics:
-      +materialized: table
-      +schema: dwh
-    # The published, denormalised surface.
+      +schema: staging
     marts:
       +materialized: table
-      +schema: mart
+      +schema: marts
+      # The star: conformed dimensions and the fact they hang off.
+      core:
+        +schema: core
