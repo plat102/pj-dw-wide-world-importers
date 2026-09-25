@@ -1,4 +1,4 @@
-# Hand-written. Bronze is a schema of the lake this project builds into, so a source here is an
+# Hand-written. Raw is a schema of the lake this project builds into, so a source here is an
 # ordinary relation dbt resolves by name. No column lists: the catalog knows the types, and
 # src/ingestion/tables.yml is where the column contract is declared and checked.
 version: 2
@@ -12,7 +12,7 @@ sources:
     # The alias the profile attaches the lake under, and dlt's dataset inside it. Literal names:
     # `+schema:` in dbt_project.yml governs models, not sources.
     database: lake
-    schema: bronze
+    schema: raw
     loader: dlt
     tables:
       - name: application__cities

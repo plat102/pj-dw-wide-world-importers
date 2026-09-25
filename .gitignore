@@ -26,8 +26,6 @@ wide_world_importers_dw/profiles*.yml
 # here; it is per-machine state, not configuration.
 .user.yml
 
-# package-lock.yml is tracked on purpose: it is what pins dbt_utils across machines.
-
 
 *.env
 */secrets/*

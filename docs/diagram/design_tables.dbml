@@ -3,7 +3,7 @@
 // Row counts are deliberately absent; they change with the data span. Run `make shape`.
 // The date keys are varchar, not date and not integer: they are yyyymmdd text.
 
-Table fact_sales_order_line {
+Table fct_sales_order_line {
   sales_order_line_key bigint [pk, note: 'the grain']
   sales_order_key bigint [note: 'degenerate dimension']
   backorder_order_key bigint [null, note: 'degenerate dimension']
@@ -83,27 +83,27 @@ Table dim_date {
   note: '12 columns. 2000-01-01 to 2050-12-31, generated.'
 }
 
-Table mart_sales_order_line {
+Table obt_sales_order_line {
   sales_order_line_key bigint [pk]
 
   note: '70 columns. Same grain as the fact, every dimension flattened on, no foreign key. The column list is a contract -- see models/marts/sales/schema.yml.'
 }
 
 // Many fact rows to one dimension row. All nine of these pointed the other way before.
-Ref: fact_sales_order_line.customer_key > dim_customer.customer_key
-Ref: fact_sales_order_line.bill_to_customer_key > dim_customer.customer_key
-Ref: fact_sales_order_line.stock_item_key > dim_stock_item.stock_item_key
-Ref: fact_sales_order_line.package_type_key > dim_package_type.package_type_key
-Ref: fact_sales_order_line.salesperson_key > dim_person.person_key
-Ref: fact_sales_order_line.picked_by_person_key > dim_person.person_key
-Ref: fact_sales_order_line.contact_person_key > dim_person.person_key
-Ref: fact_sales_order_line.order_date_key > dim_date.date_key
-Ref: fact_sales_order_line.expected_delivery_date_key > dim_date.date_key
-Ref: fact_sales_order_line.sales_order_picking_completed_date_key > dim_date.date_key
-Ref: fact_sales_order_line.sales_order_line_picking_completed_date_key > dim_date.date_key
+Ref: fct_sales_order_line.customer_key > dim_customer.customer_key
+Ref: fct_sales_order_line.bill_to_customer_key > dim_customer.customer_key
+Ref: fct_sales_order_line.stock_item_key > dim_stock_item.stock_item_key
+Ref: fct_sales_order_line.package_type_key > dim_package_type.package_type_key
+Ref: fct_sales_order_line.salesperson_key > dim_person.person_key
+Ref: fct_sales_order_line.picked_by_person_key > dim_person.person_key
+Ref: fct_sales_order_line.contact_person_key > dim_person.person_key
+Ref: fct_sales_order_line.order_date_key > dim_date.date_key
+Ref: fct_sales_order_line.expected_delivery_date_key > dim_date.date_key
+Ref: fct_sales_order_line.sales_order_picking_completed_date_key > dim_date.date_key
+Ref: fct_sales_order_line.sales_order_line_picking_completed_date_key > dim_date.date_key
 
 // A customer can be invoiced through another customer.
 Ref: dim_customer.bill_to_customer_key > dim_customer.customer_key
 
 // One mart row per fact row.
-Ref: mart_sales_order_line.sales_order_line_key - fact_sales_order_line.sales_order_line_key
+Ref: obt_sales_order_line.sales_order_line_key - fct_sales_order_line.sales_order_line_key

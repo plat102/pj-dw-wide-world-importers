@@ -19,7 +19,7 @@ DBT_PROJECT = --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
 # Read-only SELECT on the source is enough; `extract` never writes to it.
 SOURCE_DB := WideWorldImporters
 
-.PHONY: up down clean_storage install deps parse build extract compare shape lint format typecheck test check
+.PHONY: up down clean_storage install parse build extract compare shape catalog lint format typecheck test check
 
 # --- storage layer ----------------------------------------------------------------------
 # Credentials come from .env; an unset one stops the stack rather than guessing a value.
@@ -32,7 +32,7 @@ up:
 down:
 	docker compose down
 
-# Deletes the lake and its catalog, bronze included. Separate from `down`, which keeps them.
+# Deletes the lake and its catalog, raw included. Separate from `down`, which keeps them.
 clean_storage:
 	docker compose down -v
 
@@ -61,9 +61,6 @@ test:
 install:
 	uv sync --frozen
 
-deps:
-	$(DBT) deps $(DBT_PROJECT)
-
 parse:
 	$(DBT) parse $(DBT_PROJECT)
 
@@ -71,7 +68,7 @@ build:
 	$(DBT) build $(DBT_PROJECT)
 
 # dlt writes into the lake itself, so there is nothing to upload and nothing to project: the
-# bronze schema is the record of what landed.
+# raw schema is the record of what landed.
 extract:
 	uv run wwi extract --source-db $(SOURCE_DB)
 
@@ -79,7 +76,12 @@ extract:
 shape:
 	uv run wwi shape
 
-# Two builds of one bronze load must be identical; names the column when not. Split out from
+# Regenerates docs/data_warehouse_catalog.md. The page is output; schema.yml is the source.
+catalog:
+	uv run wwi catalog > docs/data_warehouse_catalog.md
+	@echo "wrote docs/data_warehouse_catalog.md"
+
+# Two builds of one raw load must be identical; names the column when not. Split out from
 # `make test` because it costs two full builds.
 compare:
 	uv run pytest tests/integration/test_build_determinism.py

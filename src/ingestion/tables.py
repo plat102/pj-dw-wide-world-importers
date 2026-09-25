@@ -1,4 +1,4 @@
-"""The extraction contract: which tables and columns the lake's bronze schema must carry."""
+"""The extraction contract: which tables and columns the lake's raw schema must carry."""
 
 from __future__ import annotations
 

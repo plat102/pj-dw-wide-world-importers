@@ -1,7 +1,7 @@
-"""Extract the declared tables into the lake's bronze schema: one dlt pipeline, one run.
+"""Extract the declared tables into the lake's raw schema: one dlt pipeline, one run.
 
 dlt attaches the same DuckLake the warehouse is built in -- same catalog, same metadata schema,
-same data path -- and loads each table into the `bronze` schema. Nothing is staged locally, and
+same data path -- and loads each table into the `raw` schema. Nothing is staged locally, and
 nothing describes what landed except the lake itself.
 """
 
@@ -21,7 +21,7 @@ from connectors import ducklake, mssql
 from ingestion import tables as tables_contract
 from utils.exceptions import ToolingError
 
-PIPELINE_NAME = "wwi_bronze"
+PIPELINE_NAME = "wwi_raw"
 
 
 def destination() -> Any:
@@ -75,7 +75,7 @@ def resources(engine: sa.Engine, specs: list[dict]) -> list[Any]:
 
 
 def extract(source_db: str) -> str:
-    """Load the source into the lake's bronze schema and report what landed."""
+    """Load the source into the lake's raw schema and report what landed."""
     specs = tables_contract.load()["tables"]
 
     engine = mssql.engine(mssql.connection_string(source_db))
@@ -90,14 +90,14 @@ def extract(source_db: str) -> str:
     pipeline = dlt.pipeline(
         pipeline_name=PIPELINE_NAME,
         destination=destination(),
-        dataset_name=settings.BRONZE_SCHEMA,
+        dataset_name=settings.RAW_SCHEMA,
     )
     print(pipeline.run(resources(engine, specs), loader_file_format="parquet"))
 
     # Read back through an attach of our own, not dlt's: if the two ever stop naming one lake, it
     # surfaces here rather than three models into a build.
     conn = ducklake.connect()
-    landed = ducklake.row_counts(conn, settings.BRONZE_SCHEMA, [e["output"] for e in specs])
+    landed = ducklake.row_counts(conn, settings.RAW_SCHEMA, [e["output"] for e in specs])
     snapshot = ducklake.latest_snapshot(conn)
     conn.close()
 
@@ -111,7 +111,7 @@ def extract(source_db: str) -> str:
         raise ToolingError(f"row counts do not match the source: {detail}")
 
     return (
-        f"{ducklake.CATALOG}.{settings.BRONZE_SCHEMA}: {len(landed)} tables, "
+        f"{ducklake.CATALOG}.{settings.RAW_SCHEMA}: {len(landed)} tables, "
         f"{sum(landed.values()):,} rows, lake snapshot {snapshot}\n"
         f"source {version}"
     )

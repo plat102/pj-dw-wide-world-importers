@@ -1,0 +1,226 @@
+version: 2
+
+models:
+  - name: obt_sales_order_line
+    description: >
+      One row per sales order line, at the same grain as fct_sales_order_line, with every
+      dimension flattened on. This is the published surface of the warehouse, so its column
+      list is an enforced contract: an upstream change that would alter it fails the build.
+      A column's prefix names the dimension or the role it came from -- `customer_` the
+      ordering customer, `order_date_` and `expected_delivery_date_` two role-plays of
+      dim_date. Foreign keys are absent on purpose: the attribute is already here.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: sales_order_line_key
+        description: "The grain. Carried through from the fact unchanged."
+        data_type: bigint
+        data_tests: ['unique', 'not_null']
+      - name: sales_order_key
+        description: "The order this line belongs to. Degenerate: there is no order dimension."
+        data_type: bigint
+      - name: quantity
+        description: "Units ordered."
+        data_type: bigint
+      - name: unit_price
+        description: "Price charged per unit on this line."
+        data_type: decimal(18,2)
+      - name: tax_rate
+        description: "Tax rate applied to this line, as a percentage."
+        data_type: decimal(18,3)
+      - name: picked_quantity
+        description: "Units actually picked, which may be short of `quantity`."
+        data_type: bigint
+      - name: backorder_order_key
+        description: "Order this one was backordered from, or NULL. Degenerate."
+        data_type: bigint
+      - name: is_undersupply_backordered
+        description: "Whether a short pick becomes a backorder rather than a cancellation."
+        data_type: boolean
+      - name: sales_order_line_processed_at
+        description: "When the load that wrote this row ran. Constant for a given load."
+        data_type: timestamp with time zone
+      - name: customer_customer_name
+        description: "Ordering customer — {{ doc('customer__name') }}"
+        data_type: varchar
+      - name: customer_customer_category_name
+        description: "Ordering customer — Customer category."
+        data_type: varchar
+      - name: customer_buying_group_name
+        description: "Ordering customer — Buying group, or NULL when the customer is in none."
+        data_type: varchar
+      - name: customer_primary_contact_full_name
+        description: "Ordering customer — {{ doc('person__full_name') }} Primary contact."
+        data_type: varchar
+      - name: customer_primary_contact_is_system_user
+        description: "Ordering customer — Whether the primary contact has a login in the source system."
+        data_type: boolean
+      - name: customer_primary_contact_is_employee
+        description: "Ordering customer — Whether the primary contact is a Wide World Importers employee."
+        data_type: boolean
+      - name: customer_primary_contact_is_salesperson
+        description: "Ordering customer — Whether the primary contact is a salesperson."
+        data_type: boolean
+      - name: customer_primary_contact_phone_number
+        description: "Ordering customer — Primary contact's phone number."
+        data_type: varchar
+      - name: customer_primary_contact_email_address
+        description: "Ordering customer — Primary contact's email address."
+        data_type: varchar
+      - name: customer_alternate_contact_full_name
+        description: "Ordering customer — {{ doc('person__full_name') }} Alternate contact, or NULL."
+        data_type: varchar
+      - name: customer_delivery_method_name
+        description: "Ordering customer — How goods reach this customer."
+        data_type: varchar
+      - name: customer_delivery_city_name
+        description: "Ordering customer — Delivery city name."
+        data_type: varchar
+      - name: customer_delivery_state_province_name
+        description: "Ordering customer — State or province of the delivery city."
+        data_type: varchar
+      - name: customer_delivery_state_province_population
+        description: "Ordering customer — Latest recorded population of that state or province."
+        data_type: bigint
+      - name: customer_delivery_country_name
+        description: "Ordering customer — Country of the delivery city."
+        data_type: varchar
+      - name: customer_delivery_country_formal_name
+        description: "Ordering customer — That country's formal name."
+        data_type: varchar
+      - name: customer_delivery_country_type
+        description: "Ordering customer — What kind of entity the country is."
+        data_type: varchar
+      - name: customer_delivery_country_population
+        description: "Ordering customer — Latest recorded population of that country."
+        data_type: bigint
+      - name: customer_credit_limit
+        description: "Ordering customer — Credit limit, or NULL for no limit."
+        data_type: decimal(18,2)
+      - name: customer_standard_discount_percentage
+        description: "Ordering customer — Standard discount applied to this customer's lines."
+        data_type: decimal(18,3)
+      - name: customer_is_on_credit_hold
+        description: "Ordering customer — Whether the customer is currently on credit hold."
+        data_type: boolean
+      - name: customer_payment_term_days
+        description: "Ordering customer — Days the customer has to pay."
+        data_type: bigint
+      - name: customer_phone_number
+        description: "Ordering customer — Customer's main phone number."
+        data_type: varchar
+      - name: customer_website_url
+        description: "Ordering customer — Customer's website."
+        data_type: varchar
+      - name: customer_delivery_address
+        description: "Ordering customer — Delivery street address, both source lines joined and trimmed."
+        data_type: varchar
+      - name: customer_delivery_postal_code
+        description: "Ordering customer — Delivery postal code."
+        data_type: varchar
+      - name: customer_postal_address
+        description: "Ordering customer — Postal street address, both source lines joined and trimmed."
+        data_type: varchar
+      - name: customer_postal_postal_code
+        description: "Ordering customer — Postal code of the postal address."
+        data_type: varchar
+      - name: bill_to_customer_name
+        description: "Bill-to customer — {{ doc('customer__name') }}"
+        data_type: varchar
+      - name: salesperson_person_full_name
+        description: "Salesperson — {{ doc('person__full_name') }}"
+        data_type: varchar
+      - name: picked_by_person_person_full_name
+        description: "Picker — {{ doc('person__full_name') }}"
+        data_type: varchar
+      - name: contact_person_person_full_name
+        description: "Customer contact — {{ doc('person__full_name') }}"
+        data_type: varchar
+      - name: stock_item_name
+        description: "Stock item — Product name."
+        data_type: varchar
+      - name: color_name
+        description: "Stock item — Colour of the item, or NULL."
+        data_type: varchar
+      - name: supplier_name
+        description: "Stock item — Supplier's trading name."
+        data_type: varchar
+      - name: is_chiller_stock
+        description: "Stock item — Whether the item must be kept refrigerated."
+        data_type: boolean
+      - name: package_type_package_type_name
+        description: "Package type — name of this line's packaging."
+        data_type: varchar
+      - name: order_date_full_date
+        description: "Order date — {{ doc('date__full_date') }}"
+        data_type: date
+      - name: expected_delivery_date_full_date
+        description: "Expected delivery date — {{ doc('date__full_date') }}"
+        data_type: date
+      - name: order_date_year
+        description: "Order date — {{ doc('date__year') }}"
+        data_type: bigint
+      - name: expected_delivery_date_year
+        description: "Expected delivery date — {{ doc('date__year') }}"
+        data_type: bigint
+      - name: order_date_year_week
+        description: "Order date — {{ doc('date__year_week') }}"
+        data_type: bigint
+      - name: expected_delivery_date_year_week
+        description: "Expected delivery date — {{ doc('date__year_week') }}"
+        data_type: bigint
+      - name: order_date_year_day
+        description: "Order date — {{ doc('date__year_day') }}"
+        data_type: bigint
+      - name: expected_delivery_date_year_day
+        description: "Expected delivery date — {{ doc('date__year_day') }}"
+        data_type: bigint
+      - name: order_date_fiscal_year
+        description: "Order date — {{ doc('date__fiscal_year') }}"
+        data_type: bigint
+      - name: expected_delivery_date_fiscal_year
+        description: "Expected delivery date — {{ doc('date__fiscal_year') }}"
+        data_type: bigint
+      - name: order_date_fiscal_qtr
+        description: "Order date — {{ doc('date__fiscal_qtr') }}"
+        data_type: varchar
+      - name: expected_delivery_date_fiscal_qtr
+        description: "Expected delivery date — {{ doc('date__fiscal_qtr') }}"
+        data_type: varchar
+      - name: order_date_month
+        description: "Order date — {{ doc('date__month') }}"
+        data_type: bigint
+      - name: expected_delivery_date_month
+        description: "Expected delivery date — {{ doc('date__month') }}"
+        data_type: bigint
+      - name: order_date_month_name
+        description: "Order date — {{ doc('date__month_name') }}"
+        data_type: varchar
+      - name: expected_delivery_date_month_name
+        description: "Expected delivery date — {{ doc('date__month_name') }}"
+        data_type: varchar
+      - name: order_date_week_day
+        description: "Order date — {{ doc('date__week_day') }}"
+        data_type: bigint
+      - name: expected_delivery_date_week_day
+        description: "Expected delivery date — {{ doc('date__week_day') }}"
+        data_type: bigint
+      - name: order_date_day_name
+        description: "Order date — {{ doc('date__day_name') }}"
+        data_type: varchar
+      - name: expected_delivery_date_day_name
+        description: "Expected delivery date — {{ doc('date__day_name') }}"
+        data_type: varchar
+      - name: order_date_day_is_weekday
+        description: "Order date — {{ doc('date__day_is_weekday') }}"
+        data_type: integer
+      - name: expected_delivery_date_day_is_weekday
+        description: "Expected delivery date — {{ doc('date__day_is_weekday') }}"
+        data_type: integer
+      - name: sales_order_picking_completed_date_full_date
+        description: "Order picking-completed date — {{ doc('date__full_date') }}"
+        data_type: date
+      - name: sales_order_line_picking_completed_date_full_date
+        description: "Line picking-completed date — {{ doc('date__full_date') }}"
+        data_type: date

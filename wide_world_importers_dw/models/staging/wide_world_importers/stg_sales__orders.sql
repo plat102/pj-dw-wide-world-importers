@@ -9,9 +9,10 @@ select
     , picked_by_person_id as picked_by_person_key
     , contact_person_id as contact_person_key
     , backorder_order_id as backorder_order_key
-    , order_date as order_date_key
-    , expected_delivery_date as expected_delivery_date_key
+    , order_date
+    , expected_delivery_date
     , is_undersupply_backordered
-    , picking_completed_when as picking_completed_date_key
+    -- A moment, not a day: the source's own name says so. The yyyymmdd key is derived in the fact.
+    , picking_completed_when as picking_completed_at
     , {{ processed_at() }} as processed_at
 from raw

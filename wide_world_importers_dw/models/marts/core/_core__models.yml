@@ -1,0 +1,286 @@
+version: 2
+
+models:
+  - name: dim_customer
+    description: "One row per customer. Category, buying group, both contacts, delivery method and the delivery city's whole geography are flattened on, so a consumer never joins back for them."
+    columns:
+      - name: customer_key
+        description: "Natural key from `Sales.Customers`. The grain."
+        data_tests: [unique, not_null]
+      - name: customer_name
+        description: "{{ doc('customer__name') }}"
+      - name: bill_to_customer_key
+        description: "The customer this one is invoiced through; most often itself. A real self-reference, which is why the key stays."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_key
+      - name: customer_category_name
+        description: "Customer category, flattened from `Sales.CustomerCategories`."
+      - name: buying_group_key
+        description: "Buying group the customer belongs to, or NULL. Kept because no dimension addresses `Sales.BuyingGroups`."
+      - name: buying_group_name
+        description: "Buying group name, or NULL when the customer is in none."
+      - name: primary_contact_full_name
+        description: "{{ doc('person__full_name') }} Primary contact."
+      - name: primary_contact_is_system_user
+        description: "Whether the primary contact has a login in the source system."
+      - name: primary_contact_is_employee
+        description: "Whether the primary contact is a Wide World Importers employee."
+      - name: primary_contact_is_salesperson
+        description: "Whether the primary contact is a salesperson."
+      - name: primary_contact_phone_number
+        description: "Primary contact's phone number."
+      - name: primary_contact_email_address
+        description: "Primary contact's email address."
+      - name: alternate_contact_full_name
+        description: "{{ doc('person__full_name') }} Alternate contact, or NULL."
+      - name: delivery_method_name
+        description: "How goods reach this customer, flattened from `Application.DeliveryMethods`."
+      - name: delivery_city_key
+        description: "Delivery city. Kept because `Application.Cities` has no dimension of its own."
+      - name: delivery_city_name
+        description: "Delivery city name."
+      - name: delivery_state_province_name
+        description: "State or province the delivery city sits in."
+      - name: delivery_state_province_population
+        description: "Latest recorded population of that state or province."
+      - name: delivery_country_name
+        description: "Country the delivery city sits in."
+      - name: delivery_country_formal_name
+        description: "That country's formal name, e.g. *United States of America*."
+      - name: delivery_country_type
+        description: "What kind of entity the country is, e.g. *Country*, *Territory*."
+      - name: delivery_country_population
+        description: "Latest recorded population of that country."
+      - name: postal_city_key
+        description: "Postal city. Carried without attributes: it has never differed from `delivery_city_key`, and `assert_customer_postal_city_matches_delivery` fails the build the day it does."
+      - name: credit_limit
+        description: "Credit limit in the source's currency, or NULL for no limit."
+      - name: standard_discount_percentage
+        description: "Standard discount applied to this customer's lines."
+      - name: is_on_credit_hold
+        description: "Whether the customer is currently on credit hold."
+      - name: payment_term_days
+        description: "Days the customer has to pay."
+      - name: phone_number
+        description: "Customer's main phone number."
+      - name: website_url
+        description: "Customer's website."
+      - name: delivery_address
+        description: "Delivery street address, the source's two lines joined and trimmed. NULL when both lines are empty."
+      - name: delivery_postal_code
+        description: "Delivery postal code."
+      - name: postal_address
+        description: "Postal street address, the source's two lines joined and trimmed. NULL when both lines are empty."
+      - name: postal_postal_code
+        description: "Postal code of the postal address."
+
+  - name: dim_person
+    description: "One row per person: system users, employees and salespeople alike. Role-played by the fact as salesperson, picker and contact."
+    columns:
+      - name: person_key
+        description: "Natural key from `Application.People`. The grain."
+        data_tests: [unique, not_null]
+      - name: person_full_name
+        description: "{{ doc('person__full_name') }}"
+      - name: person_preferred_name
+        description: "What the person is called day to day."
+      - name: is_system_user
+        description: "Whether the person has a login in the source system."
+      - name: is_employee
+        description: "Whether the person is a Wide World Importers employee."
+      - name: is_salesperson
+        description: "Whether the person is a salesperson."
+      - name: phone_number
+        description: "The person's phone number."
+      - name: email_address
+        description: "The person's email address."
+
+  - name: dim_stock_item
+    description: "One row per stock item, with both package types, colour and supplier flattened on. Keyed on the natural key, like every other dimension here."
+    columns:
+      - name: stock_item_key
+        description: "Natural key from `Warehouse.StockItems`. The grain."
+        data_tests: [unique, not_null]
+      - name: stock_item_name
+        description: "Product name as the catalogue holds it."
+      - name: supplier_key
+        description: "Supplier of the item. Kept because `Purchasing.Suppliers` has no dimension of its own."
+      - name: color_key
+        description: "Colour of the item, or NULL. Kept for the same reason."
+      - name: unit_package_type_name
+        description: "How a single unit is packaged, e.g. *Each*."
+      - name: outer_package_type_name
+        description: "How units are packaged for shipping, e.g. *Carton*."
+      - name: brand
+        description: "Brand, or NULL for unbranded stock."
+      - name: size
+        description: "Size as free text, e.g. *L*, *500g*."
+      - name: lead_time_days
+        description: "Days the supplier takes to deliver this item."
+      - name: quantity_per_outer
+        description: "Units in one outer package."
+      - name: is_chiller_stock
+        description: "Whether the item must be kept refrigerated."
+      - name: tax_rate
+        description: "Tax rate applied to the item, as a percentage."
+      - name: unit_price
+        description: "List price for one unit."
+      - name: recommended_retail_price
+        description: "Recommended retail price for one unit, or NULL."
+      - name: typical_weight_per_unit
+        description: "Typical weight of one unit, in kilograms."
+      - name: color_name
+        description: "Colour name, or NULL."
+      - name: supplier_name
+        description: "Supplier's trading name."
+
+  - name: dim_package_type
+    description: "One row per package type. Role-played by the fact for the line's own packaging, and flattened into `dim_stock_item`."
+    columns:
+      - name: package_type_key
+        description: "Natural key from `Warehouse.PackageTypes`. The grain."
+        data_tests: [unique, not_null]
+      - name: package_type_name
+        description: "Package type name, e.g. *Each*, *Carton*, *Pallet*."
+
+  - name: dim_date
+    description: "One row per day from 2000-01-01 to 2050-12-31, generated rather than loaded. Role-played by the fact: order date, expected delivery, and the picking-completed dates."
+    columns:
+      - name: date_key
+        description: "`yyyymmdd` as an integer. The grain, and what every date foreign key in the fact holds."
+        data_tests: [unique, not_null]
+      - name: full_date
+        description: "{{ doc('date__full_date') }}"
+        data_tests: [unique, not_null]
+      - name: year
+        description: "{{ doc('date__year') }}"
+      - name: year_week
+        description: "{{ doc('date__year_week') }}"
+      - name: year_day
+        description: "{{ doc('date__year_day') }}"
+      - name: fiscal_year
+        description: "{{ doc('date__fiscal_year') }}"
+      - name: fiscal_qtr
+        description: "{{ doc('date__fiscal_qtr') }}"
+      - name: month
+        description: "{{ doc('date__month') }}"
+      - name: month_name
+        description: "{{ doc('date__month_name') }}"
+      - name: week_day
+        description: "{{ doc('date__week_day') }}"
+      - name: day_name
+        description: "{{ doc('date__day_name') }}"
+      - name: day_is_weekday
+        description: "{{ doc('date__day_is_weekday') }}"
+
+  - name: fct_sales_order_line
+    description: "One row per sales order line -- the grain the whole star hangs off. Measures and degenerate dimensions, plus a foreign key per dimension role."
+    columns:
+      - name: sales_order_line_key
+        description: "Natural key from `Sales.OrderLines`. The declared grain."
+        data_tests: [unique, not_null]
+      - name: sales_order_key
+        description: "The order this line belongs to. Degenerate: there is no order dimension."
+        data_tests: [not_null]
+      - name: stock_item_key
+        description: "Item sold."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_stock_item')
+                field: stock_item_key
+      - name: package_type_key
+        description: "How this line was packaged."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_package_type')
+                field: package_type_key
+      - name: quantity
+        description: "Units ordered."
+      - name: unit_price
+        description: "Price charged per unit on this line, which may differ from the item's list price."
+      - name: tax_rate
+        description: "Tax rate applied to this line, as a percentage."
+      - name: picked_quantity
+        description: "Units actually picked, which may be short of `quantity`."
+      - name: customer_key
+        description: "Customer the order was placed by."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_key
+      - name: bill_to_customer_key
+        description: "Customer the order is invoiced to. Resolved from the ordering customer, once, on a unique key -- `Sales.Orders` does not carry it."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_key
+      - name: salesperson_key
+        description: "Salesperson credited with the order."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_person')
+                field: person_key
+      - name: picked_by_person_key
+        description: "Person who picked the line, or NULL while it is unpicked."
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_person')
+                field: person_key
+      - name: contact_person_key
+        description: "Customer-side contact for the order."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_person')
+                field: person_key
+      - name: backorder_order_key
+        description: "Order this one was backordered from, or NULL. Degenerate."
+      - name: is_undersupply_backordered
+        description: "Whether a short pick becomes a backorder rather than a cancellation."
+      - name: sales_order_line_processed_at
+        description: "When the load that wrote this row ran, from dlt's `_dlt_load_id`. Constant for a given load, which is what makes two builds comparable."
+      - name: order_date_key
+        description: "Date the order was placed."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: expected_delivery_date_key
+        description: "Date delivery is expected, or NULL."
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: sales_order_picking_completed_date_key
+        description: "Date picking finished for the whole order, or NULL. The time of day is dropped here."
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: sales_order_line_picking_completed_date_key
+        description: "Date picking finished for this line, or NULL. The time of day is dropped here."
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key

@@ -1,4 +1,4 @@
-# Tables the lake's bronze schema carries: exactly the ones a model reads, added in the same
+# Tables the lake's raw schema carries: exactly the ones a model reads, added in the same
 # change as the model that needs them. Columns are named, not `*`, so the schema is deliberate.
 
 tables:

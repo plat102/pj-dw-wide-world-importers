@@ -11,6 +11,6 @@ select
     , unit_price
     , tax_rate
     , picked_quantity
-    , picking_completed_when as picking_completed_date_key
+    , picking_completed_when as picking_completed_at
     , {{ processed_at() }} as processed_at
 from raw

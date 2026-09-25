@@ -33,5 +33,4 @@ jobs:
       # Compiling the dbt project needs no containers and catches a bad ref, a Jinja error or a
       # YAML mistake before merge -- the only dbt signal left now that CI does not build. No
       # profile step: `make` points dbt at the repository's own profiles.yml.
-      - run: make deps
       - run: make parse

@@ -14,9 +14,9 @@
 cp .env.example .env
 
 # 2. Environment and dbt packages, then the object store and the DuckLake catalog.
-make install deps up
+make install up
 
-# 3. Source → the lake's bronze schema, in one dlt run.
+# 3. Source → the lake's raw schema, in one dlt run.
 make extract
 
 # 4. Build the models and run every test, then print every relation with its shape.
@@ -57,13 +57,13 @@ flowchart LR
 
     subgraph dwh["🦆 DuckLake<br>lakehouse"]
         direction TB
-        BRONZE[Bronze<br/>bronze]
-        STG[Staging<br/>main_stg]
-        ANALYTICS[Analytics<br/>main_dwh]
-        MART[Mart<br/>main_mart]
+        RAW[Raw<br/>raw]
+        STG[Staging<br/>staging]
+        CORE[Star schema<br/>core]
+        MART[Published surface<br/>marts]
 
-        STG -->|dbt| ANALYTICS
-        ANALYTICS -->|dbt| MART
+        STG -->|dbt| CORE
+        CORE -->|dbt| MART
     end
 
     subgraph bi["📊 Visualization"]
@@ -71,15 +71,15 @@ flowchart LR
     end
 
     OLTP --> DLT
-    DLT -->|writes into the lake| BRONZE
-    BRONZE -->|dbt| STG
+    DLT -->|writes into the lake| RAW
+    RAW -->|dbt| STG
     MART -.-> LOOKER
 
     style OLTP fill:#E8E8E8,stroke:#666,stroke-width:2px,color:#333
     style DLT fill:#FFE4B5,stroke:#FFA500,stroke-width:2px,color:#333
-    style BRONZE fill:#FFF9C4,stroke:#FBC02D,stroke-width:2px,color:#333
+    style RAW fill:#FFF9C4,stroke:#FBC02D,stroke-width:2px,color:#333
     style STG fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
-    style ANALYTICS fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
+    style CORE fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
     style MART fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
     style LOOKER fill:#EEEEEE,stroke:#9E9E9E,stroke-width:2px,stroke-dasharray: 5 5,color:#333
 ```
@@ -88,18 +88,18 @@ One catalog; the layers are schemas inside it.
 
 | Schema           | Holds                                          |
 | ---------------- | ---------------------------------------------- |
-| `bronze/<id>/<table>/` | Parquet on the object store, read in place |
-| `main_stg`     | staging (`stg_`) and intermediate (`int_`) |
-| `main_dwh`     | dimensions and facts (`dim_`, `fact_`)     |
-| `main_mart`    | denormalized reporting tables (`mart_`)      |
+| `raw/<id>/<table>/` | Parquet on the object store, read in place |
+| `staging`     | staging (`stg_`) and intermediate (`int_`) |
+| `core`     | dimensions and facts (`dim_`, `fact_`)     |
+| `marts`    | denormalized reporting tables (`mart_`)      |
 
-## Filling bronze
+## Filling raw
 
-`make extract` is the only way, and it is one dlt run: every declared table read from the source and loaded into the `bronze` schema of the lake, through dlt's DuckLake destination. Nothing is staged locally, nothing is uploaded, and nothing describes what landed except the lake's own catalog.
+`make extract` is the only way, and it is one dlt run: every declared table read from the source and loaded into the `raw` schema of the lake, through dlt's DuckLake destination. Nothing is staged locally, nothing is uploaded, and nothing describes what landed except the lake's own catalog.
 
-**Bronze is a layer of the warehouse, not a pile of files beside it.** One catalog holds all four — `bronze`, `main_stg`, `main_dwh`, `main_mart` — so `source()` resolves to a relation, the extraction gets schema evolution and time travel for free, and there is no snapshot id in any path.
+**Raw is a layer of the warehouse, not a pile of files beside it.** One catalog holds all four — `raw`, `staging`, `core`, `marts` — so `source()` resolves to a relation, the extraction gets schema evolution and time travel for free, and there is no snapshot id in any path.
 
-Every bronze row carries dlt's `_dlt_load_id`, the unix timestamp of the load that wrote it. That is what staging turns into `processed_at`, and what makes two builds of one load compare equal.
+Every raw row carries dlt's `_dlt_load_id`, the unix timestamp of the load that wrote it. That is what staging turns into `processed_at`, and what makes two builds of one load compare equal.
 
 The contract carries only the tables a model reads: `src/ingestion/tables.yml` and the dbt models move together, and a unit test fails when `sources.yml` and that file stop naming the same set.
 
@@ -107,10 +107,10 @@ The contract carries only the tables a model reads: `src/ingestion/tables.yml` a
 
 ```bash
 make check      # lint, import boundaries, types, unit tests
-make build      # dbt build against whatever is in bronze
+make build      # dbt build against whatever is in raw
 make shape      # every relation with its row and column count
 make compare    # build twice, diff every table
-make extract    # reload bronze from SQL Server
+make extract    # reload raw from SQL Server
 make down       # stop the stack, keeping data (clean_storage deletes it)
 ```
 
@@ -123,7 +123,7 @@ make down       # stop the stack, keeping data (clean_storage deletes it)
 │   ├── cli/                 # The `wwi` command
 │   ├── config/              # Settings; the only place an env var is named
 │   ├── connectors/          # mssql, s3, ducklake
-│   ├── ingestion/           # Source → the lake's bronze schema
+│   ├── ingestion/           # Source → the lake's raw schema
 │   ├── warehouse/           # Reading the built warehouse
 │   └── utils/
 ├── tests/                   # unit/ needs nothing; integration/ needs the stack

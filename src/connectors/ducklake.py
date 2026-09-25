@@ -1,6 +1,6 @@
 """The DuckLake lakehouse: Parquet on the object store, catalog in Postgres.
 
-Every layer is a schema of one lake -- bronze, which dlt writes, and the schemas dbt builds.
+Every layer is a schema of one lake -- raw, which dlt writes, and the schemas dbt builds.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ def relations(
 ) -> list[tuple[str, str, str]]:
     """Every relation in the lake as (schema, name, type), optionally filtered to one type.
 
-    dlt's own bookkeeping tables are left out: they sit in the bronze schema but are not data.
+    dlt's own bookkeeping tables are left out: they sit in the raw schema but are not data.
     """
     sql = (
         "select table_schema, table_name, table_type from information_schema.tables "

@@ -88,7 +88,7 @@ select
     , dim_sales_order_picking_completed_date.full_date as sales_order_picking_completed_date_full_date
     , dim_sales_order_line_picking_completed_date.full_date as sales_order_line_picking_completed_date_full_date
 
-from {{ ref('fact_sales_order_line') }} as fsol
+from {{ ref('fct_sales_order_line') }} as fsol
 left join {{ ref('dim_customer') }}
     on fsol.customer_key = dim_customer.customer_key
 left join {{ ref('dim_customer') }} as dim_bill_to_customer

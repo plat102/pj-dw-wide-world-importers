@@ -14,7 +14,9 @@ import yaml
 from config import settings
 from ingestion import tables as tables_contract
 
-SOURCES = settings.DBT_DIR / "models" / "sources.yml"
+SOURCES = (
+    settings.DBT_DIR / "models" / "staging" / "wide_world_importers" / "__sources.yml"
+)
 
 
 def _source() -> dict[str, Any]:
@@ -36,7 +38,7 @@ def test_sources_name_exactly_the_extracted_tables() -> None:
 def test_sources_address_the_lake_the_extraction_writes() -> None:
     """The source resolves by name, so these two strings are the whole address."""
     source = _source()
-    assert source["schema"] == settings.BRONZE_SCHEMA
+    assert source["schema"] == settings.RAW_SCHEMA
     assert source["database"] == "lake"
 
 

@@ -1,8 +1,8 @@
-"""Two builds of one bronze load must produce identical tables.
+"""Two builds of one raw load must produce identical tables.
 
-Needs the stack up and a loaded bronze schema; `make test` skips it when either is missing.
+Needs the stack up and a loaded raw schema; `make test` skips it when either is missing.
 Views are not compared: a view is re-evaluated on read, so two builds cannot disagree about one.
-Bronze is not compared either: dbt never rewrites it, so the answer is a foregone conclusion.
+Raw is not compared either: dbt never rewrites it, so the answer is a foregone conclusion.
 """
 
 from __future__ import annotations
@@ -77,12 +77,12 @@ def two_builds() -> tuple[duckdb.DuckDBPyConnection, int, int]:
     except Exception as error:
         pytest.skip(f"lake unreachable: {type(error).__name__}: {error}")
 
-    # A reachable lake with an empty bronze is "not set up", not a failure: the build would error
+    # A reachable lake with an empty raw is "not set up", not a failure: the build would error
     # on every staging model and report it as non-determinism.
-    bronze = [t for s, t, _ in ducklake.relations(conn) if s == settings.BRONZE_SCHEMA]
+    raw = [t for s, t, _ in ducklake.relations(conn) if s == settings.RAW_SCHEMA]
     conn.close()
-    if not bronze:
-        pytest.skip(f"{ducklake.CATALOG}.{settings.BRONZE_SCHEMA} is empty -- run `make extract`")
+    if not raw:
+        pytest.skip(f"{ducklake.CATALOG}.{settings.RAW_SCHEMA} is empty -- run `make extract`")
 
     _build()
     conn = ducklake.connect()
@@ -107,7 +107,7 @@ def test_every_table_is_identical_across_two_builds(
     relations = [
         (s, t)
         for s, t, _ in ducklake.relations(conn, table_type="BASE TABLE")
-        if s != settings.BRONZE_SCHEMA
+        if s != settings.RAW_SCHEMA
     ]
     assert relations, "the lake holds no built tables -- run `make build` first"
 
