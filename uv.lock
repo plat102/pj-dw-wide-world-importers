@@ -2577,7 +2577,6 @@ dependencies = [
     { name = "duckdb" },
     { name = "pyarrow" },
     { name = "pymssql" },
-    { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "s3fs" },
 ]
@@ -2598,7 +2597,6 @@ requires-dist = [
     { name = "duckdb" },
     { name = "pyarrow", specifier = ">=15" },
     { name = "pymssql", specifier = ">=2.3" },
-    { name = "python-dotenv", specifier = ">=1.0" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "s3fs", specifier = ">=2024.6" },
 ]
