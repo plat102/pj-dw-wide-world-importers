@@ -1,5 +1,7 @@
-# Copy to ~/.dbt/profiles.yml (or set DBT_PROFILES_DIR). The top-level key must match `profile:`
-# in dbt_project.yml. Every value comes from the environment, so there is nothing to fill in.
+# The profile dbt actually uses: `make` passes `--profiles-dir` at this file's directory, so
+# nothing is copied anywhere and ~/.dbt is never read. It is tracked because every value comes
+# from the environment -- there is nothing to fill in and no secret to leak. The top-level key
+# must match `profile:` in dbt_project.yml.
 
 wide_world_importers_dw:
   outputs:
@@ -17,13 +19,13 @@ wide_world_importers_dw:
         - postgres
       attach:
         # One connection string, assembled from the environment. The catalog is a real database,
-        # so anything that can reach it and the bucket sees the same warehouse.
+        # so anything that can reach it and the bucket sees the same warehouse. No password: libpq
+        # reads PGPASSWORD, which `make` sets from CATALOG_PASSWORD.
         - path: >-
             ducklake:postgres:dbname={{ env_var('CATALOG_DB', 'ducklake') }}
             host={{ env_var('CATALOG_HOST', 'localhost') }}
             port={{ env_var('CATALOG_PORT', '55432') }}
             user={{ env_var('CATALOG_USER') }}
-            password={{ env_var('CATALOG_PASSWORD') }}
           alias: lake
           options:
             # Both halves must attach the same lake, and that now means the same catalog metadata:

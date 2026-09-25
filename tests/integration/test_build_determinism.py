@@ -20,8 +20,7 @@ pytestmark = pytest.mark.integration
 
 
 def _build() -> None:
-    # check=False: the output is redacted before it is reported, because the attach string
-    # carries the catalog password and dbt echoes it on failure.
+    # check=False: a failed build is reported with dbt's own output, which says which node broke.
     result = subprocess.run(
         ["dbt", "build", "--project-dir", str(settings.DBT_DIR)],
         cwd=settings.REPO_ROOT,
@@ -31,7 +30,7 @@ def _build() -> None:
         check=False,
     )
     if result.returncode != 0:
-        pytest.fail(f"dbt build failed:\n{settings.redact(result.stdout[-4000:])}")
+        pytest.fail(f"dbt build failed:\n{result.stdout[-4000:]}")
 
 
 def _columns(conn: duckdb.DuckDBPyConnection, schema: str, table: str) -> list[str]:

@@ -17,7 +17,6 @@ jobs:
     # touches a database. Not repository secrets -- they guard nothing.
     env:
       CATALOG_USER: ci
-      CATALOG_PASSWORD: ci
       S3_ACCESS_KEY: ci
       S3_SECRET_KEY: ci
     steps:
@@ -32,8 +31,7 @@ jobs:
         run: make check
 
       # Compiling the dbt project needs no containers and catches a bad ref, a Jinja error or a
-      # YAML mistake before merge -- the only dbt signal left now that CI does not build.
-      - name: Point dbt at the sample profile
-        run: mkdir -p ~/.dbt && cp profiles.sample.yml ~/.dbt/profiles.yml
+      # YAML mistake before merge -- the only dbt signal left now that CI does not build. No
+      # profile step: `make` points dbt at the repository's own profiles.yml.
       - run: make deps
       - run: make parse

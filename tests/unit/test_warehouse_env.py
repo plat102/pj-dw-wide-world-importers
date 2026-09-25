@@ -39,11 +39,26 @@ def test_catalog_dsn_defaults_match_the_compose_stack(monkeypatch: pytest.Monkey
     for name in ("CATALOG_DB", "CATALOG_HOST", "CATALOG_PORT"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CATALOG_USER", "ducklake")
-    monkeypatch.setenv("CATALOG_PASSWORD", "secret")
     dsn = catalog_dsn()
     assert "dbname=ducklake" in dsn
     assert "host=localhost" in dsn
     assert "port=55432" in dsn
+
+
+def test_no_connection_string_carries_the_password(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Both strings end up in error messages, so neither may carry the password."""
+    monkeypatch.setenv("CATALOG_USER", "ducklake")
+    monkeypatch.setenv("CATALOG_PASSWORD", "it's a b")
+    assert "it's a b" not in catalog_dsn()
+    assert urlsplit(catalog_url()).password is None
+
+
+def test_catalog_url_quotes_a_reserved_character(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The user is still interpolated into a URL. Unquoted, a `/` or `@` in it truncates it."""
+    monkeypatch.setenv("CATALOG_USER", "wwi@lake/rw")
+    url = catalog_url()
+    assert "wwi%40lake%2Frw" in url
+    assert unquote(urlsplit(url).username or "") == "wwi@lake/rw"
 
 
 def test_data_path_is_the_lake_root(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -58,19 +73,9 @@ def test_catalog_url_and_dsn_reach_one_database(monkeypatch: pytest.MonkeyPatch)
     for name in ("CATALOG_DB", "CATALOG_HOST", "CATALOG_PORT"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CATALOG_USER", "ducklake")
-    monkeypatch.setenv("CATALOG_PASSWORD", "secret")
     parts = urlsplit(catalog_url())
     assert parts.hostname == "localhost"
     assert str(parts.port) == "55432"
     assert parts.path == "/ducklake"
     assert parts.username == "ducklake"
     assert "dbname=ducklake" in catalog_dsn()
-
-
-def test_catalog_url_quotes_a_reserved_character(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A password is user data. Unquoted, a `/` or `@` in it silently truncates the URL."""
-    monkeypatch.setenv("CATALOG_USER", "ducklake")
-    monkeypatch.setenv("CATALOG_PASSWORD", "p@ss/word")
-    url = catalog_url()
-    assert "p%40ss%2Fword" in url
-    assert unquote(urlsplit(url).password or "") == "p@ss/word"

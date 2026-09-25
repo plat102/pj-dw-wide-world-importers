@@ -5,8 +5,14 @@
 # of `#` -- make truncates the rest of the line.
 -include .env
 export
+# libpq reads the catalog password from here -- for wwi, dlt and dbt alike -- so no connection
+# string carries it, and no error can echo it.
+export PGPASSWORD := $(CATALOG_PASSWORD)
 DBT_DIR := wide_world_importers_dw
-PROFILES_ARG := $(if $(PROFILES_DIR),--profiles-dir $(PROFILES_DIR),)
+# dbt reads the profile from this repository, never from ~/.dbt: a copy in a home directory is
+# how a fix that had already landed here -- dropping `password=` -- kept being undone on one
+# machine. Override with PROFILES_DIR for a profile kept elsewhere.
+PROFILES_ARG := --profiles-dir $(if $(PROFILES_DIR),$(PROFILES_DIR),$(CURDIR))
 DBT := uv run dbt
 # Every dbt invocation needs both, so they are named once.
 DBT_PROJECT = --project-dir ./$(DBT_DIR) $(PROFILES_ARG)

@@ -13,16 +13,13 @@
 #    and MSSQL_CONNECTION_STRING. Everything else already has a working default.
 cp .env.example .env
 
-# 2. A dbt profile where dbt looks for one. Every value in it comes from the environment.
-mkdir -p ~/.dbt && cp profiles.sample.yml ~/.dbt/profiles.yml
-
-# 3. Environment and dbt packages, then the object store and the DuckLake catalog.
+# 2. Environment and dbt packages, then the object store and the DuckLake catalog.
 make install deps up
 
-# 4. Source → the lake's bronze schema, in one dlt run.
+# 3. Source → the lake's bronze schema, in one dlt run.
 make extract
 
-# 5. Build the models and run every test, then print every relation with its shape.
+# 4. Build the models and run every test, then print every relation with its shape.
 make build
 make shape
 ```

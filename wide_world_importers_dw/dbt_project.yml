@@ -1,7 +1,7 @@
 name: 'wide_world_importers_dw'
 version: '1.0.0'
 
-# Must match the top-level key in profiles.sample.yml.
+# Must match the top-level key in ../profiles.yml.
 profile: 'wide_world_importers_dw'
 
 model-paths: ["models"]
