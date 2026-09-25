@@ -40,7 +40,7 @@ def load_secret(conn: duckdb.DuckDBPyConnection) -> None:
             type s3,
             key_id '{settings.require("S3_ACCESS_KEY")}',
             secret '{settings.require("S3_SECRET_KEY")}',
-            endpoint '{settings.require("S3_ENDPOINT")}',
+            endpoint '{settings.endpoint()}',
             url_style 'path',
             use_ssl {str(settings.use_ssl()).lower()}
         )
@@ -64,7 +64,7 @@ def wait_until_ready(timeout: float = 90.0, interval: float = 2.0) -> str:
     round trip is the only honest signal.
     """
     bucket = settings.bucket()
-    endpoint = settings.require("S3_ENDPOINT")
+    endpoint = settings.endpoint()
     probe = f"{bucket}/.write-probe"
     deadline = time.monotonic() + timeout
     attempt = 0

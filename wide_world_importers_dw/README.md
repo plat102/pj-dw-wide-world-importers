@@ -24,7 +24,7 @@ make parse         # Jinja and YAML errors only, no database work
 
 Column types are not repeated there. The catalog knows them, and `src/ingestion/tables.yml` is where the column contract is declared and checked against the source database. A unit test fails when the two files stop naming the same set of tables.
 
-`profiles.yml` reads everything from the environment, so there is nothing to fill in. Do not keep a copy in this directory: it shadows `~/.dbt/profiles.yml` and drifts from `profiles.sample.yml`, which is why it is git-ignored.
+`../profiles.yml` is the profile, and `make` points dbt at it with `--profiles-dir`. It reads everything from the environment, so there is nothing to fill in. Do not keep a copy in this directory: `dbt` invoked by hand, without the flag, would read it instead, and a second copy is what drifts. That is why it is git-ignored.
 
 ## Tests
 

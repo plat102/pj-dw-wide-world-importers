@@ -22,6 +22,10 @@ logs/*
 
 wide_world_importers_dw/profiles*.yml
 
+# dbt writes its anonymous-usage id next to the profile. That is now this directory, so ignore it
+# here; it is per-machine state, not configuration.
+.user.yml
+
 # package-lock.yml is tracked on purpose: it is what pins dbt_utils across machines.
 
 

@@ -7,7 +7,6 @@ Paths are derived from this file's location, so they do not depend on the workin
 from __future__ import annotations
 
 import os
-import re
 from pathlib import Path
 from urllib.parse import quote
 
@@ -32,7 +31,7 @@ def require(name: str) -> str:
     """A variable with no sensible default. Raises rather than exits, so a caller can catch it."""
     value = os.environ.get(name)
     if not value:
-        raise ToolingError(f"{name} is not set -- copy .env.example to .env and fill it in")
+        raise ToolingError(f"{name} is not set -- set it in .env and run through make")
     return value
 
 
@@ -52,12 +51,16 @@ def use_ssl() -> bool:
     return flag("S3_USE_SSL")
 
 
+def endpoint() -> str:
+    return optional("S3_ENDPOINT", "localhost:8333")
+
+
 def endpoint_url() -> str:
-    return f"{'https' if use_ssl() else 'http'}://{require('S3_ENDPOINT')}"
+    return f"{'https' if use_ssl() else 'http'}://{endpoint()}"
 
 
 def bucket() -> str:
-    return require("S3_BUCKET")
+    return optional("S3_BUCKET", "wwi")
 
 
 def lake_prefix() -> str:
@@ -70,12 +73,17 @@ def data_path() -> str:
 
 
 def catalog_dsn() -> str:
+    """The catalog in libpq form. No password here or in `catalog_url`: libpq reads PGPASSWORD,
+    which the Makefile sets from CATALOG_PASSWORD.
+
+    Both strings land in DuckDB's error messages, which dbt and dlt print and dbt also logs. Out
+    of them, the password is never echoed and needs no quoting.
+    """
     return (
         f"dbname={optional('CATALOG_DB', 'ducklake')} "
         f"host={optional('CATALOG_HOST', 'localhost')} "
         f"port={optional('CATALOG_PORT', '55432')} "
-        f"user={require('CATALOG_USER')} "
-        f"password={require('CATALOG_PASSWORD')}"
+        f"user={require('CATALOG_USER')}"
     )
 
 
@@ -83,13 +91,6 @@ def catalog_url() -> str:
     """The catalog as a URL, the only form dlt parses. Same database as `catalog_dsn`."""
     return (
         f"postgresql://{quote(require('CATALOG_USER'), safe='')}"
-        f":{quote(require('CATALOG_PASSWORD'), safe='')}"
         f"@{optional('CATALOG_HOST', 'localhost')}:{optional('CATALOG_PORT', '55432')}"
         f"/{optional('CATALOG_DB', 'ducklake')}"
     )
-
-
-def redact(text: str) -> str:
-    """Strip the catalog password: dbt echoes the libpq form on failure, dlt echoes the URL one."""
-    text = re.sub(r"password=\S+", "password=***", text)
-    return re.sub(r"(://[^:/@\s]+:)[^@\s]+@", r"\1***@", text)
