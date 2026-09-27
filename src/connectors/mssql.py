@@ -51,13 +51,41 @@ def check_declared_columns(source: sa.Engine, tables: list[dict]) -> None:
 
 
 def count_source_rows(source: sa.Engine, tables: list[dict]) -> dict[str, int]:
-    """Row counts at the source. Row-level security filters silently, and usually partially."""
+    """Row counts at the source as this login sees them, refused unless it sees every row.
+
+    `COUNT(*)` goes through row-level security, which filters silently and usually partially --
+    and dlt reads through the same filter, so comparing the load against `COUNT(*)` alone can
+    never catch it. `sys.partitions` is metadata that RLS does not filter: when the two differ,
+    rows are hidden from this login. VIEW DEFINITION, which the login already holds, is what
+    makes `sys.partitions` visible.
+    """
     counts: dict[str, int] = {}
+    hidden = []
     with source.connect() as conn:
         for entry in tables:
             schema, table = entry["source"].split(".")
-            query = sa.text(f"SELECT COUNT(*) FROM [{schema}].[{table}]")
-            counts[entry["output"]] = int(conn.execute(query).scalar_one())
+            visible = int(
+                conn.execute(sa.text(f"SELECT COUNT_BIG(*) FROM [{schema}].[{table}]")).scalar_one()
+            )
+            # index_id 0 is a heap, 1 a clustered index: exactly one of them holds every row.
+            stored = int(
+                conn.execute(
+                    sa.text(
+                        "SELECT COALESCE(SUM(rows), 0) FROM sys.partitions "
+                        "WHERE object_id = OBJECT_ID(:name) AND index_id IN (0, 1)"
+                    ),
+                    {"name": f"[{schema}].[{table}]"},
+                ).scalar_one()
+            )
+            if visible != stored:
+                hidden.append(f"{entry['source']} shows {visible:,} of {stored:,} rows")
+            counts[entry["output"]] = visible
+    if hidden:
+        raise ToolingError(
+            "this login cannot see every source row -- row-level security is filtering, most "
+            "likely a '<Territory> Sales' role it is not a member of; rerun "
+            "infrastructure/mssql/prepare_extraction_login.sql: " + "; ".join(hidden)
+        )
     return counts
 
 
