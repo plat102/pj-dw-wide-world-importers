@@ -80,11 +80,16 @@ shape:
 	uv run wwi shape
 
 # Regenerates docs/data_warehouse_catalog.md. The page is output; schema.yml is the source.
-catalog:
-	uv run wwi catalog > docs/data_warehouse_catalog.md
+# `parse` first, so the descriptions come from the current manifest. Written to a temporary file
+# and moved on success: a redirect straight onto the page empties it whenever the command fails.
+catalog: parse
+	uv run wwi catalog > docs/data_warehouse_catalog.md.tmp \
+		&& mv docs/data_warehouse_catalog.md.tmp docs/data_warehouse_catalog.md \
+		|| { rm -f docs/data_warehouse_catalog.md.tmp; exit 1; }
 	@echo "wrote docs/data_warehouse_catalog.md"
 
-# Two builds of one raw load must be identical; names the column when not. Split out from
-# `make test` because it costs two full builds.
+# Two builds of one raw load must be identical; names the column when not. Not part of `make
+# test`, which deselects integration tests, because it costs two full builds. `--require-lake`
+# turns "lake unreachable" or "raw empty" into a failure: here, a skip would read as a pass.
 compare:
-	uv run pytest tests/integration/test_build_determinism.py
+	uv run pytest -m integration --require-lake tests/integration/test_build_determinism.py

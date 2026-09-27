@@ -114,7 +114,8 @@ check_untyped_defs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# importlib, so test modules mirroring the package tree may share a basename.
-addopts = "--import-mode=importlib -q"
-# Integration tests skip themselves when the lake is unreachable, so `make test` needs no stack.
-markers = ["integration: needs the object store, the catalog and a loaded bronze schema"]
+# importlib, so test modules mirroring the package tree may share a basename. Integration tests
+# are deselected: with the stack up they build twice and commit to the lake, which is not what
+# `make check` is for. `make compare` selects them with `-m integration`, which overrides this.
+addopts = "--import-mode=importlib -q -m 'not integration'"
+markers = ["integration: needs the object store, the catalog and a loaded raw schema"]
