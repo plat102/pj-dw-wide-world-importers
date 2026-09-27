@@ -1,0 +1,14 @@
+# dlt's own bookkeeping, in the same schema as the data it describes. Its own source so that
+# `wwi_raw` keeps naming exactly the tables in src/ingestion/tables.yml.
+version: 2
+
+sources:
+  - name: dlt
+    description: "dlt's record of every load into the lake's raw schema."
+    database: lake
+    schema: raw
+    loader: dlt
+    tables:
+      - name: loads
+        identifier: _dlt_loads
+        description: "One row per load package. `status = 0` is written only once every table in the package has been loaded."

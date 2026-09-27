@@ -179,6 +179,7 @@ models:
 
   - name: fct_sales_order_line
     description: "One row per sales order line -- the grain the whole star hangs off. Measures and degenerate dimensions, plus a foreign key per dimension role."
+    data_tests: [not_empty]
     columns:
       - name: sales_order_line_key
         description: "Natural key from `Sales.OrderLines`. The declared grain."

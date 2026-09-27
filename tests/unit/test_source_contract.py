@@ -46,3 +46,14 @@ def test_no_source_reads_parquet_directly() -> None:
     """`external_location` wins over database.schema, so leaving one behind silently bypasses
     the catalog and the source points at files again."""
     assert "external_location" not in SOURCES.read_text(encoding="utf-8")
+
+
+def test_every_raw_table_is_checked_for_a_complete_load() -> None:
+    """A load that dies halfway leaves tables empty or from an unfinished load, and every other
+    test passes on those. `complete_dlt_load` is the only thing that stops the build."""
+    unguarded = [
+        table["name"]
+        for table in _source()["tables"]
+        if "complete_dlt_load" not in table.get("data_tests", [])
+    ]
+    assert not unguarded, f"add `data_tests: [complete_dlt_load]` to {unguarded}"

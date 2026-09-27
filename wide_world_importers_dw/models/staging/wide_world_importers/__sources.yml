@@ -14,19 +14,37 @@ sources:
     database: lake
     schema: raw
     loader: dlt
+    # Every table carries complete_dlt_load: a load that died halfway leaves some tables empty
+    # and others from a load that never finished, and every test downstream passes on both.
+    # `make build` runs it as a gate before building anything.
     tables:
       - name: application__cities
+        data_tests: [complete_dlt_load]
       - name: application__countries
+        data_tests: [complete_dlt_load]
       - name: application__delivery_methods
+        data_tests: [complete_dlt_load]
       - name: application__people
+        data_tests: [complete_dlt_load]
       - name: application__state_provinces
+        data_tests: [complete_dlt_load]
       - name: purchasing__supplier_categories
+        data_tests: [complete_dlt_load]
       - name: purchasing__suppliers
+        data_tests: [complete_dlt_load]
       - name: sales__buying_groups
+        data_tests: [complete_dlt_load]
       - name: sales__customer_categories
+        data_tests: [complete_dlt_load]
       - name: sales__customers
+        data_tests: [complete_dlt_load]
       - name: sales__order_lines
+        data_tests: [complete_dlt_load]
       - name: sales__orders
+        data_tests: [complete_dlt_load]
       - name: warehouse__colors
+        data_tests: [complete_dlt_load]
       - name: warehouse__package_types
+        data_tests: [complete_dlt_load]
       - name: warehouse__stock_items
+        data_tests: [complete_dlt_load]
