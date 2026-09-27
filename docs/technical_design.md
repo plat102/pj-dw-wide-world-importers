@@ -82,9 +82,9 @@ The extraction half holds the source credential; nothing downstream may reach th
 
 | Contract                                                                                                           | Prevents                                                      |
 | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| Only`connectors.mssql` may import `dlt` / `sqlalchemy` / `pymssql`                                         | a new source connection anywhere else                         |
-| `warehouse`, `contracts`, `config`, `utils` must not import `connectors.mssql`                             | the transform half acquiring the means to connect             |
-| Layered:`utils`/`config` → `contracts` → `connectors` → `ingestion`/`warehouse` → `cli`         | the core reaching back up; a new module escaping the layering |
+| Nothing but `connectors.mssql` and `ingestion.pipeline` may import `dlt` / `sqlalchemy` / `pymssql` | a new source connection anywhere else |
+| `warehouse`, `config`, `utils` must not import `connectors.mssql` | the transform half acquiring the means to connect |
+| Layered: `utils` → `config` → `connectors` → `ingestion`/`warehouse` → `cli` | the core reaching back up; a new module escaping the layering |
 
 Each was shown to fail before it was trusted.
 
@@ -108,7 +108,7 @@ See [Data Modeling](data_modelling.md).
 
 **3. No surrogate keys, and every dimension is SCD Type 1.** Each dimension is keyed on its natural key, renamed to `<entity>_key`. `dim_stock_item` once carried an MD5 hash key held for a later Type 2 build; its justification — versioning `unit_price` — was **falsified by measurement**, since no stock item has ever had more than one distinct price, and the key was dropped because nothing joined it. `dim_date.date_key` is a `yyyymmdd` integer, the smart key Kimball exempts from the surrogate key rule. Type 1 here is reached by rebuild rather than by `update`, and `dim_date` is Type 0 — see the roadmap's change-tracking section.
 
-**4. The extraction contract carries only what a model reads.** `tables.yml` and the dbt models move together: a table enters the contract in the same change as the model that selects from it, and a unit test fails when `tables.yml` and `__sources.yml` stop naming the same set. Six tables were once carried for a supply-chain fact that does not exist; they were removed. Adding them back is a YAML edit in the pull request that needs them.
+**4. The extraction contract carries only the tables a model reads.** `tables.yml` and the dbt models move together: a table enters the contract in the same change as the model that selects from it, and a unit test fails when `tables.yml` and `__sources.yml` stop naming the same set. Six tables were once carried for a supply-chain fact that does not exist; they were removed. Adding them back is a YAML edit in the pull request that needs them. Columns are not held to the same rule yet: each table declares more columns than staging selects today.
 
 **5. Raw in the lake, not beside it.** An earlier build wrote raw as bare Parquet under a per-run prefix and described it with a hand-written, committed `manifest.json` carrying a SHA256, a row count and the column types of every file. That bought integrity checking the object store and the catalog now provide, and it cost: a run id in every path, a `SNAPSHOT_ID` variable, a generated sources file that had to be regenerated and committed after each extraction, and two dbt objects that read a JSON file off local disk. dlt's DuckLake destination writes into the same catalog dbt builds in, so all of that is the table format's job. The trade is stated rather than hidden: per-file checksums are gone, which is normal inside one system and would not be across an organisational boundary.
 
@@ -116,11 +116,12 @@ See [Data Modeling](data_modelling.md).
 
 | Guard              | What it covers                                                                                                                                                                                 |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| dbt tests          | `unique` + `not_null` on every dimension key, a `relationships` test on every foreign key from the fact, a raw row-count parity test on every staging model, a mart grain test, a `dim_date` calendar test |
+| Load gate          | `complete_dlt_load` on every raw table: non-empty, one `_dlt_load_id`, and that id the newest load dlt recorded as complete. `make build` runs it alone before `dbt build`, because a failing source test inside `dbt build` does not stop the models that read the source. A load that died halfway — some tables emptied, some from a load that never finished — stops here |
+| dbt tests          | `unique` + `not_null` on every dimension key, a `relationships` test on every foreign key from the fact, a raw row-count parity test on every staging model, `not_empty` on the fact and the mart, a mart grain test, a `dim_date` calendar test |
 | Enforced contract  | `obt_sales_order_line` declares every column and type; an upstream change to its shape fails the build                                                                                   |
 | Determinism        | `make compare` builds twice and diffs every relation, naming the column when one differs. 0 differing                                                                                        |
-| Load integrity     | `make extract` counts the source before the load and the lake after it, and refuses a difference — row-level security filters silently, and usually only part of a table |
-| Static gates       | `make check` — ruff, import contracts, mypy, unit tests including `__sources.yml` against `tables.yml` — plus `dbt parse`, which compiles every model without a database. That is all CI runs: the warehouse is built from a source CI cannot reach, so the tests above run on a developer machine |
+| Load integrity     | `make extract` refuses a source whose `COUNT(*)` differs from `sys.partitions` — row-level security filters silently and usually partially, and dlt reads through the same filter, so only metadata RLS cannot filter shows it. It then compares the landed rows with that count, and refuses to start while dlt holds an unfinished package from an earlier run |
+| Static gates       | `make check` — ruff, import contracts, mypy, unit tests including `__sources.yml` against `tables.yml` — plus `dbt parse`, which renders every model's Jinja and resolves every `ref` and `source` without a database. It does not check SQL against the engine: a misspelt column still passes. That is all CI runs: the warehouse is built from a source CI cannot reach, so the tests above run on a developer machine |
 
 Source freshness is not configured. Raw is a relation now, so `loaded_at_field` would work — but a threshold on a manually triggered load against a static sample database would be a number invented to have one.
 
