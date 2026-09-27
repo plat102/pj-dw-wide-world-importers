@@ -107,7 +107,7 @@ The contract carries only the tables a model reads: `src/ingestion/tables.yml` a
 
 ```bash
 make check      # lint, import boundaries, types, unit tests
-make build      # dbt build against whatever is in raw
+make build      # check raw holds one complete load, then dbt build
 make shape      # every relation with its row and column count
 make compare    # build twice, diff every table
 make extract    # reload raw from SQL Server

@@ -21,8 +21,8 @@ A ✅ means there is a command whose output shows it. Anything without one is �
 
 | | Criterion | Evidence |
 |---|---|---|
-| ✅ | **Data completeness** | Every staging model's row count matches the raw table it reads. `make build` runs `matches_source_rowcount` over every one |
-| ✅ | **Accuracy** | Every declared column is checked to exist in the source before the load, and every table's landed row count is compared against `COUNT(*)` at the source, read back through the same attach the build uses. `make extract` |
+| ✅ | **Data completeness** | Every raw table holds one complete load, or nothing is built: `make build` runs `complete_dlt_load` first. Every staging model's row count matches the raw table it reads (`matches_source_rowcount`) |
+| ✅ | **Accuracy** | Every declared column is checked to exist in the source before the load. A login that row-level security hides rows from is refused (`COUNT(*)` against `sys.partitions`), and every table's landed row count is compared against the source, read back through an attach of the extraction's own. `make extract` |
 | ✅ | **Referential integrity** | A `relationships` test on every foreign key from the fact, `unique` + `not_null` on every dimension key. `make build` |
 | ✅ | **Flexibility** | `obt_sales_order_line` is one table, no join needed, its shape declared under `contract: enforced` |
 | ✅ | **Reproducibility** | Two builds of one raw load, every relation compared, 0 differing: `make compare` |

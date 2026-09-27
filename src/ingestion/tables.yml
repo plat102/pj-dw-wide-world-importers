@@ -1,5 +1,6 @@
 # Tables the lake's raw schema carries: exactly the ones a model reads, added in the same
-# change as the model that needs them. Columns are named, not `*`, so the schema is deliberate.
+# change as the model that needs them. Columns are named, not `*`, so the schema is deliberate --
+# but not yet trimmed to what staging selects: several are carried that no model reads.
 
 tables:
   - source: Application.Cities
