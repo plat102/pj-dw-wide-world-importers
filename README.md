@@ -33,7 +33,7 @@ The extraction needs a read-only login on the source; `infrastructure/mssql/prep
 | Source         | SQL Server                           | WWI OLTP, one read-only login                              |
 | Extraction     | dlt                                  | declared tables straight to Parquet on the object store    |
 | Storage        | S3-compatible object store           | the lake's data files, under `lake/`                   |
-| Warehouse      | DuckLake (DuckDB + Postgres catalog) | raw → staging → analytics → mart                        |
+| Warehouse      | DuckLake (DuckDB + Postgres catalog) | raw → staging → core → marts                        |
 | Transformation | dbt Core                             | dimensional models, enforced contract on the mart          |
 
 **Problem:** analytical queries slow the transactional system; reports need IT. **Solution:** a dimensional warehouse reproducible from one command against the source.
@@ -101,7 +101,7 @@ One catalog; the layers are schemas inside it.
 
 Every raw row carries dlt's `_dlt_load_id`, the unix timestamp of the load that wrote it. That is what staging turns into `processed_at`, and what makes two builds of one load compare equal.
 
-The contract carries only the tables a model reads: `src/ingestion/tables.yml` and the dbt models move together, and a unit test fails when `sources.yml` and that file stop naming the same set.
+The contract carries only the tables a model reads: `src/ingestion/tables.yml` and the dbt models move together, and a unit test fails when `__sources.yml` and that file stop naming the same set.
 
 ## Commands
 

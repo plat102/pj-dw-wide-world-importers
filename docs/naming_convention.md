@@ -12,26 +12,28 @@ Naming standards and code style guidelines for consistency across the project
 | --------------------- | --------- | --------------- | ----------------------------- |
 | Staging               | `stg_`  | View            | `stg_sales__customers.sql`    |
 | Intermediate          | `int_`  | View            | `int_cities__joined.sql` |
-| Analytics (Dimension) | `dim_`  | Table           | `dim_customer.sql`          |
-| Analytics (Fact)      | `fact_` | Table           | `fct_sales_order_line.sql` |
-| Marts                 | `mart_` | Table           | `obt_sales_order_line.sql` |
+| Core (Dimension)      | `dim_`  | Table           | `dim_customer.sql`          |
+| Core (Fact)           | `fct_`  | Table           | `fct_sales_order_line.sql` |
+| Marts                 | `obt_`  | Table           | `obt_sales_order_line.sql` |
 
 ### Model Organization
 
 ```
 models/
 ├── staging/
-│   └── wide_world_importers/
-│       ├── sales/               # Grouped by source schema
-│       ├── warehouse/
-│       └── application/
+│   └── wide_world_importers/   # One directory per source, flat inside
+│       ├── __sources.yml
+│       └── stg_<schema>__<entity>.sql
 ├── intermediate/               # Joins reused by more than one model
-├── analytics/
-│   ├── dim_*.sql               # Dimension tables
-│   └── fact_*.sql              # Fact tables
 └── marts/
+    ├── core/                   # The star: conformed dimensions and the fact
+    │   ├── dim_*.sql
+    │   └── fct_*.sql
     └── sales/                  # Grouped by business domain
+        └── obt_*.sql
 ```
+
+A staging model is named for the relation it reads: `stg_<source_schema>__<entity>`, entity plural. The double underscore separates the source from the object, so `stg_sales__order_lines` reads `Sales.OrderLines`.
 
 ## Database Objects
 
@@ -51,9 +53,8 @@ Naming conventions for tables and columns in the warehouse
 | ------------------ | -------------------------- | -------------------------------------------------- |
 | Primary Key        | `<table>_key`            | `customer_key`, `stock_item_key`               |
 | Foreign Key        | `<referenced_table>_key` | `customer_key`, `order_date_key`               |
-| Date Surrogate Key | `<description>_date_key` | `order_date_key`, `expected_delivery_date_key` |
+| Date Key           | `<description>_date_key` | `order_date_key`, `expected_delivery_date_key` |
 | Boolean            | `is_<description>`       | `is_employee`, `is_on_credit_hold`             |
-| Surrogate Key      | `<table>_sk`             | `stock_item_sk`                                  |
 | General            | snake_case                 | `customer_name`, `unit_price`                  |
 
 **Known exceptions**, recorded rather than quietly tolerated:
@@ -143,7 +144,7 @@ from high_value_customers
 
 ### Sources
 
-- Define in `sources.yml` with schema and table name
+- Define in `models/staging/<source>/__sources.yml` with schema and table name
 - Reference using `{{ source('schema_name', 'table_name') }}`
 
 ### References

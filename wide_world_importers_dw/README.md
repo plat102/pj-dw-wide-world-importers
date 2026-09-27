@@ -20,7 +20,7 @@ make catalog       # regenerate docs/data_warehouse_catalog.md from schema.yml +
 
 ## Where raw comes from
 
-`models/sources.yml` is hand-written and small. Raw is a schema of the same DuckLake catalog this project writes to, so `{{ source('wwi_raw', 'sales__orders') }}` resolves to `lake.raw.sales__orders` — an ordinary relation, not a `read_parquet` glob. The source names no bucket and no prefix; the profile names the catalog, and dlt decides what lands in it.
+`models/staging/wide_world_importers/__sources.yml` is hand-written and small. Raw is a schema of the same DuckLake catalog this project writes to, so `{{ source('wwi_raw', 'sales__orders') }}` resolves to `lake.raw.sales__orders` — an ordinary relation, not a `read_parquet` glob. The source names no bucket and no prefix; the profile names the catalog, and dlt decides what lands in it.
 
 Column types are not repeated there. The catalog knows them, and `src/ingestion/tables.yml` is where the column contract is declared and checked against the source database. A unit test fails when the two files stop naming the same set of tables.
 
