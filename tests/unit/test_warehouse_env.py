@@ -6,7 +6,8 @@ from urllib.parse import unquote, urlsplit
 
 import pytest
 
-from config.settings import catalog_dsn, catalog_url, data_path, endpoint_url, use_ssl
+from config.settings import catalog_dsn, catalog_url, data_path, endpoint_url, require, use_ssl
+from utils.exceptions import ToolingError
 
 
 @pytest.mark.parametrize("value", ["1", "true", "TRUE", "Yes", " true ", "1 "])
@@ -79,3 +80,17 @@ def test_catalog_url_and_dsn_reach_one_database(monkeypatch: pytest.MonkeyPatch)
     assert parts.path == "/ducklake"
     assert parts.username == "ducklake"
     assert "dbname=ducklake" in catalog_dsn()
+
+
+@pytest.mark.parametrize("value", ['"secret"', "'secret'"])
+def test_a_quoted_value_is_refused(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    """make keeps the quotes, compose strips them: the two halves would hold different secrets."""
+    monkeypatch.setenv("S3_SECRET_KEY", value)
+    with pytest.raises(ToolingError, match="quote marks"):
+        require("S3_SECRET_KEY")
+
+
+@pytest.mark.parametrize("value", ["it's", '"', 'a"b'])
+def test_a_quote_inside_a_value_is_kept(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    monkeypatch.setenv("S3_SECRET_KEY", value)
+    assert require("S3_SECRET_KEY") == value
