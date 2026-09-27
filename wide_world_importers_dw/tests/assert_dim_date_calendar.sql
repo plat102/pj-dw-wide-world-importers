@@ -5,18 +5,19 @@
 
 with expected (full_date, fiscal_year, fiscal_qtr, year_week, week_day, day_is_weekday) as (
     values
-        -- Fiscal year starts in April, so March closes FY2024 and April opens FY2025.
-        (date '2024-03-31', 2024, 'Q4', 202413, 1, 0),
-        (date '2024-04-01', 2025, 'Q1', 202414, 2, 1),
+        -- Wide World Importers' fiscal year starts on 1 November (see fiscal_year_start_month in
+        -- dbt_project.yml), so October closes FY2024 and November opens FY2025.
+        (date '2024-10-31', 2024, 'Q4', 202444, 5, 1),
+        (date '2024-11-01', 2025, 'Q1', 202444, 6, 1),
         -- ISO week 1 of 2025 begins while the calendar still says December.
-        (date '2024-12-30', 2025, 'Q3', 202501, 2, 1),
+        (date '2024-12-30', 2025, 'Q1', 202501, 2, 1),
         -- Saturday, Sunday, Monday: the weekend flag and the 1=Sunday numbering.
-        (date '2025-01-04', 2025, 'Q4', 202501, 7, 0),
-        (date '2025-01-05', 2025, 'Q4', 202501, 1, 0),
-        (date '2025-01-06', 2025, 'Q4', 202502, 2, 1),
+        (date '2025-01-04', 2025, 'Q1', 202501, 7, 0),
+        (date '2025-01-05', 2025, 'Q1', 202501, 1, 0),
+        (date '2025-01-06', 2025, 'Q1', 202502, 2, 1),
         -- Last day of fiscal Q1 and first of fiscal Q2.
-        (date '2025-06-30', 2026, 'Q1', 202527, 2, 1),
-        (date '2025-07-01', 2026, 'Q2', 202527, 3, 1)
+        (date '2025-01-31', 2025, 'Q1', 202505, 6, 1),
+        (date '2025-02-01', 2025, 'Q2', 202505, 7, 0)
 )
 
 select
