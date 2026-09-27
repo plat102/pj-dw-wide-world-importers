@@ -87,11 +87,13 @@ Build a dimensional data warehouse to support analytics for Wide World Importers
 
 | Dimension                  | Grain                    | Type                 | Key Attributes                                                                                   | Notes                                                 |
 | -------------------------- | ------------------------ | -------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
-| **dim_customer**     | One row per customer     | Type 0 (static)      | Customer name, category, buying group, contact details, delivery/postal addresses, payment terms | -                                                     |
-| **dim_stock_item**   | One row per stock item   | Type 0 (static)      | Product name, supplier, color, chiller stock indicator                                           | -                                                     |
-| **dim_person**       | One row per person       | Type 0 (static)      | Full name, email, phone, employee/salesperson flags                                              | Role-playing dimension (salesperson, contact, picker) |
-| **dim_package_type** | One row per package type | Type 0 (static)      | Package type name                                                                                | -                                                     |
-| **dim_date**         | One row per calendar day | Static pre-populated | Date components (year, month, day), day of week, ISO week, month name                            | -                                                     |
+| **dim_customer**     | One row per customer     | Type 1 (overwrite)   | Customer name, category, buying group, contact details, delivery/postal addresses, payment terms | -                                                     |
+| **dim_stock_item**   | One row per stock item   | Type 1 (overwrite)   | Product name, supplier, color, chiller stock indicator                                           | -                                                     |
+| **dim_person**       | One row per person       | Type 1 (overwrite)   | Full name, email, phone, employee/salesperson flags                                              | Role-playing dimension (salesperson, contact, picker) |
+| **dim_package_type** | One row per package type | Type 1 (overwrite)   | Package type name                                                                                | -                                                     |
+| **dim_date**         | One row per calendar day | Type 0 (generated)   | Date components (year, month, day), day of week, ISO week, month name                            | -                                                     |
+
+Type 1 is reached by rebuild, not by `update`: the extraction replaces `raw` and dbt rebuilds the star, so no superseded value survives anywhere. Nothing here is Type 2 — no dimension carries a row effective date, a row expiration date or a current row indicator.
 
 ## Marts Layer
 
@@ -108,18 +110,18 @@ Fully denormalized fact with all dimension attributes joined, eliminating need f
 *Note: This shows logical data transformation dependencies. For physical infrastructure flow, see technical_design.md*
 
 ```
-Source (SQL Server)          Staging (Views)              Intermediate      Analytics (Tables)
+Source (SQL Server)          Staging (Views)              Intermediate      Core (Tables)
 ──────────────────────       ──────────────────────       ─────────────     ──────────────────
 sales.Orders            ──>  stg_sales__orders         ──┐
 sales.OrderLines        ──>  stg_sales__order_lines    ──┼───────────────────> fct_sales_order_line
                                                        │
 sales.Customers         ──>  stg_sales__customers      ──┴───────────────────> dim_customer
 application.Cities      ──>  stg_application__cities    ──┐                      ▲
-application.StateProv…  ──>  stg_application_state…  ──┼──> int_cities__joined┘
+application.StateProv…  ──>  stg_application__state_provinces ──┼──> int_cities__joined┘
 application.Countries   ──>  stg_application__countries ──┘
 warehouse.StockItems    ──>  stg_warehouse__stock_items ────────────────────── > dim_stock_item
 application.People      ──>  stg_application__people   ────────────────────── > dim_person
-warehouse.PackageTypes  ──>  stg_warehouse_package_ty ────────────────────── > dim_package_type
+warehouse.PackageTypes  ──>  stg_warehouse__package_types ────────────────────── > dim_package_type
 (Generated)                                            ────────────────────── > dim_date
 ```
 

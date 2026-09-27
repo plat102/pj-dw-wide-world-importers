@@ -64,16 +64,18 @@ SCD Type 2 was once listed as a deliverable and is **not built** — see [Change
 
 - **One business process.** Sales only; purchasing, inventory and fulfilment are designed, not built.
 - **No orchestration.** `make` is the orchestrator and a human runs it.
-- **No incremental models.** Everything is a full rebuild, which currently costs seconds.
+- **No incremental models.** Everything is a full rebuild, which currently costs seconds. This is also what makes every dimension Type 1 — see [Change tracking](#change-tracking).
 - **Staging has no tests or docs.** No `unique`, no `not_null`, and barely a description between the lot of them.
 
 ### Change tracking
 
-**One position on SCD Type 2, and it is this one.** Every dimension is **Type 0**: a change overwrites.
+**One position on slowly changing dimensions, and it is this one.** Every dimension is **Type 1 — overwrite**, in Kimball's sense: the attribute reflects the most recent assignment and history is destroyed. It is reached by rebuild rather than by `update`: the extraction replaces `raw` and dbt rebuilds the star from it, so there is no place a superseded value could survive. `dim_date` is the exception and is **Type 0 — retain original**: it is generated from a date spine, never loaded from a source.
 
-`dim_stock_item` carries the only surrogate key, `stock_item_sk`, so a Type 2 build could later give one item several rows. It was introduced to version `unit_price` and that reason was wrong: **no stock item has ever had more than one distinct price** — the only column that changes is a JSON tag blob — and the data generator never writes to that table, so extending the data cannot create history either. The key stays because it costs nothing.
+Nothing in the warehouse is a Type 2 mechanism. There is no dbt snapshot, no model is incremental, and no dimension carries a row effective date, a row expiration date or a current row indicator — the three columns Type 2 requires.
 
-Two dimensions do change: **`Application.People` and `Sales.Customers`**, on a minority of rows each. So SCD2 has a real subject, just not the product dimension. Building it needs the two `*_Archive` tables in the extraction contract first, which requires a fresh extraction.
+No dimension carries a surrogate key. Every one is keyed on its natural key, renamed to `<entity>_key`. `dim_stock_item` once carried an MD5 hash key held in reserve for a Type 2 build; it was dropped, because nothing joined it and Type 2 means rewiring the star rather than adding a column. `dim_date.date_key` is a `yyyymmdd` integer — a smart key, which is the one dimension Kimball exempts from the surrogate key rule.
+
+Two dimensions do change: **`Application.People` and `Sales.Customers`**, on a minority of rows each. So Type 2 has a real subject, just not the product dimension. The source is SQL Server temporal, so the history already exists in the `*_Archive` tables — building Type 2 here is reading those tables, not running `dbt snapshot`, which could only record changes from the day it first ran.
 
 ## What comes next
 
@@ -97,4 +99,4 @@ Not planned: real-time ingestion, ML, production orchestration.
 
 ## Extension path
 
-Each new business process follows the same pattern: **source → staging → analytics → marts**. Candidates: purchase order analytics (procurement, supplier performance), inventory management (movements, turnover, valuation), customer intelligence (lifetime value, segmentation).
+Each new business process follows the same pattern: **raw → staging → core → marts**. Candidates: purchase order analytics (procurement, supplier performance), inventory management (movements, turnover, valuation), customer intelligence (lifetime value, segmentation).

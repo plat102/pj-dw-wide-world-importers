@@ -12,7 +12,7 @@ graph TB
     end
 
     subgraph Lake["Stage 2 -- one catalog, four schemas, no source credential"]
-        BRONZE[(raw<br/>one table per declared source table)]
+        RAW[(raw<br/>one table per declared source table)]
         STG[(staging<br/>staging + intermediate)]
         DWH[(core<br/>star schema)]
         MART[(marts<br/>wide mart, contract enforced)]
@@ -25,8 +25,8 @@ graph TB
     end
 
     OLTP -->|one dlt run| DLT
-    DLT -->|ducklake destination| BRONZE
-    BRONZE -->|dbt| STG
+    DLT -->|ducklake destination| RAW
+    RAW -->|dbt| STG
     STG -->|dbt| DWH
     DWH -->|dbt| MART
     DBT -.-> STG
@@ -52,7 +52,7 @@ The earlier BigQuery build (`wwi_raw` → `wwi_stg` → `wwi_dwh` → `wwi_mart`
 
 Raw holds the source as it arrived — renamed and typed by dlt, nothing else — plus `_dlt_load_id` on every row, the unix timestamp of the load that wrote it. Staging turns that into `processed_at`, which is why two builds of one load compare equal.
 
-DuckLake decides how a raw table is stored. A large one becomes Parquet under the data path; a small one may be inlined into the catalog instead. Neither is addressed by hand: `sources.yml` names a database and a schema, and the catalog does the rest.
+DuckLake decides how a raw table is stored. A large one becomes Parquet under the data path; a small one may be inlined into the catalog instead. Neither is addressed by hand: `__sources.yml` names a database and a schema, and the catalog does the rest.
 
 *Data flow* is physical movement (the diagram above). *Data lineage* is logical dependency between tables — see [Data Modeling](data_modelling.md), or `dbt docs` for the interactive DAG.
 
@@ -104,13 +104,13 @@ See [Data Modeling](data_modelling.md).
 
 **1b. Plain EL, per-table, with no cross-table transaction.** An earlier build read every table inside one SQL Server snapshot-isolation transaction and asserted the transaction id had not changed, so the snapshot was provably one instant. It was removed. The guarantee is real and the technique is the right one on a live 24/7 OLTP — but this source is a static sample database, and the extraction separately asserts the data generator is off, so the protection had no threat to protect against. What it cost was concrete: it forced one `pipeline.extract()` call per resource, a local staging directory and a hand-written flattening step, none of which dlt needs. The trade is stated rather than hidden: the referential tests still pass, but now because the source does not move, not because the pipeline guarantees it. On a source that does move, put it back.
 
-**2. Four transformation layers, no pass-through.** Staging is exactly one view per source table, renames and casts only, no joins. Intermediate holds joins reused more than once; there is one, `int_cities__joined`. Analytics is the star. Marts are denormalised for BI under an enforced contract. Five `stg_*_wwi` models whose only job was to be selected from by an identically-shaped `analytics/` model are gone, along with the models that selected them.
+**2. Four transformation layers, no pass-through.** Staging is exactly one view per source table, renames and casts only, no joins. Intermediate holds joins reused more than once; there is one, `int_cities__joined`. Core is the star. Marts are denormalised for BI under an enforced contract. Five `stg_*_wwi` models whose only job was to be selected from by an identically-shaped model one layer up are gone, along with the models that selected them.
 
-**3. One surrogate key.** `dim_stock_item.stock_item_sk`, MD5 over the natural key; every other dimension is keyed on its natural key. Its original justification — versioning `unit_price` — was **falsified by measurement**: no stock item has ever had more than one distinct price, and the data generator never writes to that table, so extending the data cannot create history either. Kept because it costs nothing and a later Type 2 build would want it.
+**3. No surrogate keys, and every dimension is SCD Type 1.** Each dimension is keyed on its natural key, renamed to `<entity>_key`. `dim_stock_item` once carried an MD5 hash key held for a later Type 2 build; its justification — versioning `unit_price` — was **falsified by measurement**, since no stock item has ever had more than one distinct price, and the key was dropped because nothing joined it. `dim_date.date_key` is a `yyyymmdd` integer, the smart key Kimball exempts from the surrogate key rule. Type 1 here is reached by rebuild rather than by `update`, and `dim_date` is Type 0 — see the roadmap's change-tracking section.
 
-**4. The extraction contract carries only what a model reads.** `tables.yml` and the dbt models move together: a table enters the contract in the same change as the model that selects from it, and a unit test fails when `tables.yml` and `sources.yml` stop naming the same set. Six tables were once carried for a supply-chain fact that does not exist; they were removed. Adding them back is a YAML edit in the pull request that needs them.
+**4. The extraction contract carries only what a model reads.** `tables.yml` and the dbt models move together: a table enters the contract in the same change as the model that selects from it, and a unit test fails when `tables.yml` and `__sources.yml` stop naming the same set. Six tables were once carried for a supply-chain fact that does not exist; they were removed. Adding them back is a YAML edit in the pull request that needs them.
 
-**5. Raw in the lake, not beside it.** An earlier build wrote raw as bare Parquet under a per-run prefix and described it with a hand-written, committed `manifest.json` carrying a SHA256, a row count and the column types of every file. That bought integrity checking the object store and the catalog now provide, and it cost: a run id in every path, a `SNAPSHOT_ID` variable, a generated `sources.yml` that had to be regenerated and committed after each extraction, and two dbt objects that read a JSON file off local disk. dlt's DuckLake destination writes into the same catalog dbt builds in, so all of that is the table format's job. The trade is stated rather than hidden: per-file checksums are gone, which is normal inside one system and would not be across an organisational boundary.
+**5. Raw in the lake, not beside it.** An earlier build wrote raw as bare Parquet under a per-run prefix and described it with a hand-written, committed `manifest.json` carrying a SHA256, a row count and the column types of every file. That bought integrity checking the object store and the catalog now provide, and it cost: a run id in every path, a `SNAPSHOT_ID` variable, a generated sources file that had to be regenerated and committed after each extraction, and two dbt objects that read a JSON file off local disk. dlt's DuckLake destination writes into the same catalog dbt builds in, so all of that is the table format's job. The trade is stated rather than hidden: per-file checksums are gone, which is normal inside one system and would not be across an organisational boundary.
 
 ## Data quality
 
@@ -120,7 +120,7 @@ See [Data Modeling](data_modelling.md).
 | Enforced contract  | `obt_sales_order_line` declares every column and type; an upstream change to its shape fails the build                                                                                   |
 | Determinism        | `make compare` builds twice and diffs every relation, naming the column when one differs. 0 differing                                                                                        |
 | Load integrity     | `make extract` counts the source before the load and the lake after it, and refuses a difference — row-level security filters silently, and usually only part of a table |
-| Static gates       | `make check` — ruff, import contracts, mypy, unit tests including `sources.yml` against `tables.yml` — plus `dbt parse`, which compiles every model without a database. That is all CI runs: the warehouse is built from a source CI cannot reach, so the tests above run on a developer machine |
+| Static gates       | `make check` — ruff, import contracts, mypy, unit tests including `__sources.yml` against `tables.yml` — plus `dbt parse`, which compiles every model without a database. That is all CI runs: the warehouse is built from a source CI cannot reach, so the tests above run on a developer machine |
 
 Source freshness is not configured. Raw is a relation now, so `loaded_at_field` would work — but a threshold on a manually triggered load against a static sample database would be a number invented to have one.
 
