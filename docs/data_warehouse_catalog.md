@@ -68,10 +68,10 @@ One row per sales order line, at the same grain as fct_sales_order_line, with ev
 | `expected_delivery_date_year_week` | bigint |  | Expected delivery date — ISO year and week as `yyyyww`. The ISO year, so the last days of December can belong to the next one. |
 | `order_date_year_day` | bigint |  | Order date — Calendar year and day-of-year as `yyyyddd`. |
 | `expected_delivery_date_year_day` | bigint |  | Expected delivery date — Calendar year and day-of-year as `yyyyddd`. |
-| `order_date_fiscal_year` | bigint |  | Order date — Fiscal year. Wide World Importers starts its year in April, so April 2024 falls in FY2025. |
-| `expected_delivery_date_fiscal_year` | bigint |  | Expected delivery date — Fiscal year. Wide World Importers starts its year in April, so April 2024 falls in FY2025. |
-| `order_date_fiscal_qtr` | varchar |  | Order date — Fiscal quarter as `Q1`–`Q4`, counted from April. |
-| `expected_delivery_date_fiscal_qtr` | varchar |  | Expected delivery date — Fiscal quarter as `Q1`–`Q4`, counted from April. |
+| `order_date_fiscal_year` | bigint |  | Order date — Fiscal year, named for the calendar year it ends in. Wide World Importers starts its financial year on 1 November, so November 2024 falls in FY2025. |
+| `expected_delivery_date_fiscal_year` | bigint |  | Expected delivery date — Fiscal year, named for the calendar year it ends in. Wide World Importers starts its financial year on 1 November, so November 2024 falls in FY2025. |
+| `order_date_fiscal_qtr` | varchar |  | Order date — Fiscal quarter as `Q1`–`Q4`, counted from November: Q1 is November–January. |
+| `expected_delivery_date_fiscal_qtr` | varchar |  | Expected delivery date — Fiscal quarter as `Q1`–`Q4`, counted from November: Q1 is November–January. |
 | `order_date_month` | bigint |  | Order date — Calendar month, 1–12. |
 | `expected_delivery_date_month` | bigint |  | Expected delivery date — Calendar month, 1–12. |
 | `order_date_month_name` | varchar |  | Order date — Month name in English. |
@@ -140,8 +140,8 @@ One row per day from 2000-01-01 to 2050-12-31, generated rather than loaded. Rol
 | `year` | bigint |  | Calendar year. |
 | `year_week` | bigint |  | ISO year and week as `yyyyww`. The ISO year, so the last days of December can belong to the next one. |
 | `year_day` | bigint |  | Calendar year and day-of-year as `yyyyddd`. |
-| `fiscal_year` | bigint |  | Fiscal year. Wide World Importers starts its year in April, so April 2024 falls in FY2025. |
-| `fiscal_qtr` | varchar |  | Fiscal quarter as `Q1`–`Q4`, counted from April. |
+| `fiscal_year` | bigint |  | Fiscal year, named for the calendar year it ends in. Wide World Importers starts its financial year on 1 November, so November 2024 falls in FY2025. |
+| `fiscal_qtr` | varchar |  | Fiscal quarter as `Q1`–`Q4`, counted from November: Q1 is November–January. |
 | `month` | bigint |  | Calendar month, 1–12. |
 | `month_name` | varchar |  | Month name in English. |
 | `week_day` | bigint |  | Day of week, 1 = Sunday through 7 = Saturday. |

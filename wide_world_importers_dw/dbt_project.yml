@@ -8,6 +8,12 @@ model-paths: ["models"]
 test-paths: ["tests"]
 macro-paths: ["macros"]
 
+vars:
+  # Wide World Importers' financial year starts on 1 November -- Microsoft's WideWorldImportersDW
+  # catalog, and Integration.GenerateDateDimensionColumns in that sample. An April start was
+  # carried over from the BigQuery build without a source; the calendar test pins this value.
+  fiscal_year_start_month: 11
+
 clean-targets:         # directories to be removed by `dbt clean`
   - "target"
   - "dbt_packages"
