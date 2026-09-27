@@ -78,11 +78,6 @@ def extract(source_db: str) -> str:
     """Load the source into the lake's raw schema and report what landed."""
     specs = tables_contract.load()["tables"]
 
-    engine = mssql.engine(mssql.connection_string(source_db))
-    version = mssql.inspect_source(engine, source_db)
-    mssql.check_declared_columns(engine, specs)
-    expected = mssql.count_source_rows(engine, specs)
-
     # The pyarrow backend adds neither bookkeeping column by default. The row id stays off: it is
     # random per row, so two extractions of one source would never agree again.
     dlt.config["normalize.parquet_normalizer.add_dlt_load_id"] = True
@@ -92,7 +87,23 @@ def extract(source_db: str) -> str:
         destination=destination(),
         dataset_name=settings.RAW_SCHEMA,
     )
-    print(pipeline.run(resources(engine, specs), loader_file_format="parquet"))
+    # A package left by a failed run makes `run()` load that package and return, extracting
+    # nothing new -- so the counts below would be compared against old rows. Refused, not
+    # silently discarded: whoever runs this decides what happens to the unfinished load.
+    if pipeline.has_pending_data:
+        raise ToolingError(
+            f"pipeline {PIPELINE_NAME} holds an unfinished load package from an earlier run, and "
+            "dlt would load it instead of extracting the source. Discard it with "
+            f"`uv run dlt pipeline {PIPELINE_NAME} abort-packages`, then extract again"
+        )
+
+    engine = mssql.engine(mssql.connection_string(source_db))
+    version = mssql.inspect_source(engine, source_db)
+    mssql.check_declared_columns(engine, specs)
+    expected = mssql.count_source_rows(engine, specs)
+
+    info = pipeline.run(resources(engine, specs), loader_file_format="parquet")
+    print(info)
 
     # Read back through an attach of our own, not dlt's: if the two ever stop naming one lake, it
     # surfaces here rather than three models into a build.
@@ -101,8 +112,8 @@ def extract(source_db: str) -> str:
     snapshot = ducklake.latest_snapshot(conn)
     conn.close()
 
-    # Row-level security filters without raising, and usually only part of a table -- every
-    # downstream check would then agree with itself on a short load.
+    # Rows hidden from the login are refused before the load, by count_source_rows. This catches
+    # the load itself landing a different number than the source holds.
     drift = {n: (expected[n], landed[n]) for n in landed if expected[n] != landed[n]}
     if drift:
         detail = ", ".join(
@@ -112,6 +123,7 @@ def extract(source_db: str) -> str:
 
     return (
         f"{ducklake.CATALOG}.{settings.RAW_SCHEMA}: {len(landed)} tables, "
-        f"{sum(landed.values()):,} rows, lake snapshot {snapshot}\n"
+        f"{sum(landed.values()):,} rows, load {', '.join(info.loads_ids)}, "
+        f"lake snapshot {snapshot}\n"
         f"source {version}"
     )
