@@ -9,6 +9,7 @@ import duckdb
 
 from config import settings
 from connectors import s3
+from utils import sql
 from utils.exceptions import ToolingError
 
 EXTENSIONS = ("httpfs", "ducklake", "postgres")
@@ -28,8 +29,9 @@ def connect() -> duckdb.DuckDBPyConnection:
     # The metadata schema is stated, not inherited from the role's search path: dlt states it too,
     # and that is what makes both halves provably one lake.
     conn.execute(
-        f"attach 'ducklake:postgres:{settings.catalog_dsn()}' as {CATALOG} "
-        f"(data_path '{settings.data_path()}', metadata_schema '{settings.METADATA_SCHEMA}')"
+        f"attach {sql.literal('ducklake:postgres:' + settings.catalog_dsn())} as {CATALOG} "
+        f"(data_path {sql.literal(settings.data_path())}, "
+        f"metadata_schema {sql.literal(settings.METADATA_SCHEMA)})"
     )
     conn.execute(f"use {CATALOG}")
     return conn

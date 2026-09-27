@@ -32,6 +32,10 @@ def require(name: str) -> str:
     value = os.environ.get(name)
     if not value:
         raise ToolingError(f"{name} is not set -- set it in .env and run through make")
+    # make keeps quote marks as part of the value; docker compose strips them. A quoted secret
+    # therefore reaches the store unquoted and every client quoted, and the store answers 403.
+    if value[0] in "'\"" and value.endswith(value[0]) and len(value) > 1:
+        raise ToolingError(f"{name} is wrapped in quote marks -- remove them from .env")
     return value
 
 
@@ -72,6 +76,18 @@ def data_path() -> str:
     return f"s3://{bucket()}/{lake_prefix()}/"
 
 
+def catalog_host() -> str:
+    return optional("CATALOG_HOST", "localhost")
+
+
+def catalog_port() -> str:
+    return optional("CATALOG_PORT", "55432")
+
+
+def catalog_db() -> str:
+    return optional("CATALOG_DB", "ducklake")
+
+
 def catalog_dsn() -> str:
     """The catalog in libpq form. No password here or in `catalog_url`: libpq reads PGPASSWORD,
     which the Makefile sets from CATALOG_PASSWORD.
@@ -80,9 +96,7 @@ def catalog_dsn() -> str:
     of them, the password is never echoed and needs no quoting.
     """
     return (
-        f"dbname={optional('CATALOG_DB', 'ducklake')} "
-        f"host={optional('CATALOG_HOST', 'localhost')} "
-        f"port={optional('CATALOG_PORT', '55432')} "
+        f"dbname={catalog_db()} host={catalog_host()} port={catalog_port()} "
         f"user={require('CATALOG_USER')}"
     )
 
@@ -91,6 +105,5 @@ def catalog_url() -> str:
     """The catalog as a URL, the only form dlt parses. Same database as `catalog_dsn`."""
     return (
         f"postgresql://{quote(require('CATALOG_USER'), safe='')}"
-        f"@{optional('CATALOG_HOST', 'localhost')}:{optional('CATALOG_PORT', '55432')}"
-        f"/{optional('CATALOG_DB', 'ducklake')}"
+        f"@{catalog_host()}:{catalog_port()}/{catalog_db()}"
     )

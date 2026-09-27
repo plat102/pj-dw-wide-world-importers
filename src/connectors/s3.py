@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 import duckdb
 
 from config import settings
+from utils import sql
 from utils.exceptions import ToolingError
 
 if TYPE_CHECKING:
@@ -38,9 +39,9 @@ def load_secret(conn: duckdb.DuckDBPyConnection) -> None:
         f"""
         create or replace secret storage (
             type s3,
-            key_id '{settings.require("S3_ACCESS_KEY")}',
-            secret '{settings.require("S3_SECRET_KEY")}',
-            endpoint '{settings.endpoint()}',
+            key_id {sql.literal(settings.require("S3_ACCESS_KEY"))},
+            secret {sql.literal(settings.require("S3_SECRET_KEY"))},
+            endpoint {sql.literal(settings.endpoint())},
             url_style 'path',
             use_ssl {str(settings.use_ssl()).lower()}
         )

@@ -41,5 +41,7 @@ wide_world_importers_dw:
           secret: "{{ env_var('S3_SECRET_KEY') }}"
           endpoint: "{{ env_var('S3_ENDPOINT', 'localhost:8333') }}"
           url_style: path
-          use_ssl: "{{ env_var('S3_USE_SSL', 'false') }}"
+          # The same rule as settings.flag: 1/true/yes, any case and padding, is on; anything else
+          # is off. Passed through raw, DuckDB rejected values Python accepted, like " true ".
+          use_ssl: "{{ (env_var('S3_USE_SSL', 'false') | trim | lower) in ['1', 'true', 'yes'] }}"
   target: lake
