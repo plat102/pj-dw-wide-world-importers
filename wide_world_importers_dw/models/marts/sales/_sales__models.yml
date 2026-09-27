@@ -12,6 +12,7 @@ models:
     config:
       contract:
         enforced: true
+    data_tests: [not_empty]
     columns:
       - name: sales_order_line_key
         description: "The grain. Carried through from the fact unchanged."

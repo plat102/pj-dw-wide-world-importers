@@ -64,7 +64,10 @@ install:
 parse:
 	$(DBT) parse $(DBT_PROJECT)
 
+# The load gate runs on its own first. In `dbt build`, a failing test on a source does not skip
+# the models that read it, so a half-finished load would still be built into core and marts.
 build:
+	$(DBT) test $(DBT_PROJECT) --select "test_name:complete_dlt_load"
 	$(DBT) build $(DBT_PROJECT)
 
 # dlt writes into the lake itself, so there is nothing to upload and nothing to project: the
