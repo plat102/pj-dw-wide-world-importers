@@ -27,10 +27,10 @@ A ✅ means there is a command whose output shows it. Anything without one is �
 | ✅ | **Flexibility** | `obt_sales_order_line` is one table, no join needed, its shape declared under `contract: enforced` |
 | ✅ | **Reproducibility** | Two builds of one raw load, every relation compared, 0 differing: `make compare` |
 | ✅ | **Maintainability** | Transformations are SQL in version control; every claim carries its command |
-| ✅ | **Data quality** | Every test seen to fail before it was trusted: `make build`. They run on a developer machine, not in CI — see **Automation** below |
+| ✅ | **Data quality** | Every test seen to fail before it was trusted: `make build`. CI runs every one of them on an empty raw schema, which checks the SQL and the logic; the ones about the data itself need `make extract` — see **Automation** below |
 | 🚧 | **Performance** | "Dashboard queries under 5 seconds" was never measured, and that dashboard points at the frozen BigQuery build. The build's own wall clock is what is measured |
 | 🚧 | **Scalability** | Adding a business process means adding its tables to the extraction contract and its models in the same change. No second business process exists, so this is a design argument, not a demonstration |
-| 🚧 | **Automation** | CI runs the static gates on every pull request — including `dbt parse`, so a bad `ref` or a Jinja error still fails before merge — but the dbt tests need a source database CI has no access to, so they run only on a developer machine. Nothing runs on a schedule and no orchestrator owns the extraction |
+| 🚧 | **Automation** | CI runs `make check` on every pull request, which builds every model, data test and dbt unit test on an empty raw schema: a misspelt column or a broken contract fails before merge. The data itself is loaded from a source CI has no access to, so the end-to-end build still runs on a developer machine. Nothing runs on a schedule and no orchestrator owns the extraction |
 | ❌ | **Cost efficiency as a cloud property** | No longer applicable — the warehouse runs on containers this repository starts and throws away |
 
 Two extractions of one source agree on row counts and column sets but **not on physical row order**: the source is read without `ORDER BY`, and that was measured, not assumed. So comparing two raw loads byte for byte cannot answer "did the source change". Imposing a sort key before the write would fix that; it is not done.

@@ -31,7 +31,7 @@ packages = [
 ]
 
 [tool.setuptools.package-data]
-ingestion = ["tables.yml"]
+ingestion = ["tables.yml", "raw_schema.sql"]
 
 [project.scripts]
 wwi = "cli.app:main"
@@ -59,7 +59,7 @@ type = "forbidden"
 source_modules = [
     "config", "utils", "warehouse",
     "connectors.s3", "connectors.ducklake",
-    "ingestion.tables",
+    "ingestion.tables", "ingestion.raw_schema",
 ]
 forbidden_modules = ["dlt", "sqlalchemy", "pymssql"]
 

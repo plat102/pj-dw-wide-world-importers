@@ -44,4 +44,20 @@ wide_world_importers_dw:
           # The same rule as settings.flag: 1/true/yes, any case and padding, is on; anything else
           # is off. Passed through raw, DuckDB rejected values Python accepted, like " true ".
           use_ssl: "{{ (env_var('S3_USE_SSL', 'false') | trim | lower) in ['1', 'true', 'yes'] }}"
+
+    # `make build_empty`: the raw schema and no rows, in a local DuckLake that `wwi empty-lake`
+    # creates. Same engine and table format as `lake`; nothing to connect to, so no variable.
+    # The path is relative to the repository root, where `make` runs dbt. No data_path: the
+    # catalog stores the one it was created with, and a second spelling of it is refused.
+    empty:
+      type: duckdb
+      path: ":memory:"
+      threads: 1
+      extensions:
+        - ducklake
+      attach:
+        - path: "ducklake:.empty_lake/metadata.ducklake"
+          alias: lake
+      database: lake
+      schema: main
   target: lake

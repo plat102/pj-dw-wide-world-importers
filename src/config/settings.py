@@ -17,6 +17,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 DBT_DIR = REPO_ROOT / "wide_world_importers_dw"
 TABLES_CONFIG = REPO_ROOT / "src" / "ingestion" / "tables.yml"
+# The raw schema as types, generated from the lake by `make raw_schema` and committed: what lets
+# CI build every model without the source. `make build_empty` builds it into EMPTY_LAKE_DIR.
+RAW_SCHEMA_DDL = REPO_ROOT / "src" / "ingestion" / "raw_schema.sql"
+# profiles.yml names this directory too, relative to the repository root `make` runs from.
+EMPTY_LAKE_DIR = REPO_ROOT / ".empty_lake"
 
 # The lake schema `make extract` writes and dbt's sources read.
 RAW_SCHEMA = "raw"

@@ -1,9 +1,10 @@
 # wide_world_importers_dw
 
-The dbt project. Models over the lake's `raw` schema, built into the `stg`, `dwh` and `mart` schemas of that same lake. Run it from the repository root, not from here — the Makefile passes `--project-dir` and the profile, and the build needs environment variables that `.env` holds.
+The dbt project. Models over the lake's `raw` schema, built into the `staging`, `core` and `marts` schemas of that same lake. Run it from the repository root, not from here — the Makefile passes `--project-dir` and the profile, and the build needs environment variables that `.env` holds.
 
 ```bash
 make build         # build against whatever is in raw
+make build_empty   # every model and test on an empty raw schema: no stack, no source
 make parse         # Jinja and YAML errors only, no database work
 make catalog       # regenerate docs/data_warehouse_catalog.md from schema.yml + the lake
 ```

@@ -28,7 +28,7 @@ DBT_PROJECT = --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
 # Read-only SELECT on the source is enough; `extract` never writes to it.
 SOURCE_DB := WideWorldImporters
 
-.PHONY: up down clean_storage install parse build extract compare shape catalog maintain lint format typecheck test check
+.PHONY: up down clean_storage install parse build extract compare shape catalog maintain raw_schema build_empty lint format typecheck test check
 
 # --- storage layer ----------------------------------------------------------------------
 # Credentials come from .env; an unset one stops the stack rather than guessing a value.
@@ -48,7 +48,7 @@ clean_storage:
 # --- checks -----------------------------------------------------------------------------
 # `check` is what CI runs and what to run before pushing. None of it needs Docker.
 
-check: lint typecheck test
+check: lint typecheck test build_empty
 
 lint:
 	uv run ruff check .
@@ -97,6 +97,23 @@ catalog: parse
 		&& mv docs/data_warehouse_catalog.md.tmp docs/data_warehouse_catalog.md \
 		|| { rm -f docs/data_warehouse_catalog.md.tmp; exit 1; }
 	@echo "wrote docs/data_warehouse_catalog.md"
+
+# Every model and every test, built on a local lake that holds the raw schema and no rows: the
+# SQL runs against the engine, so a misspelt column or a broken contract fails here, not after
+# `make extract`. No stack and no source. The two tests that exist to fail on empty tables --
+# the load gate and not_empty -- are the only ones left out.
+build_empty:
+	uv run wwi empty-lake
+	$(DBT) build $(DBT_PROJECT) --target empty --empty \
+		--exclude "test_name:complete_dlt_load test_name:not_empty"
+
+# Regenerates src/ingestion/raw_schema.sql from the loaded lake. Run it after changing
+# tables.yml and extracting; the diff is the change to the raw schema, reviewed like code.
+raw_schema:
+	uv run wwi raw-schema > src/ingestion/raw_schema.sql.tmp \
+		&& mv src/ingestion/raw_schema.sql.tmp src/ingestion/raw_schema.sql \
+		|| { rm -f src/ingestion/raw_schema.sql.tmp; exit 1; }
+	@echo "wrote src/ingestion/raw_schema.sql"
 
 # Expires snapshots older than KEEP_DAYS, merges small files, and deletes the files no kept
 # snapshot reads. The newest snapshot always survives. Never while `extract` or `build` runs:
