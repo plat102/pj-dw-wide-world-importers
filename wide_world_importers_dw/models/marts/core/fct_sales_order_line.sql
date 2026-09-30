@@ -22,10 +22,10 @@ with order_line_joined as (
         , stg_sales__orders.is_undersupply_backordered
         , stg_sales__orders.picking_completed_at as sales_order_picking_completed_at
         , stg_sales__order_lines.processed_at as sales_order_line_processed_at
-    from {{ ref('stg_sales__order_lines') }}
-    left join {{ ref('stg_sales__orders') }}
+    from {{ ref('stg_sales__order_lines') }} as stg_sales__order_lines
+    left join {{ ref('stg_sales__orders') }} as stg_sales__orders
         on stg_sales__order_lines.order_key = stg_sales__orders.order_key
-    left join {{ ref('stg_sales__customers') }}
+    left join {{ ref('stg_sales__customers') }} as stg_sales__customers
         on stg_sales__orders.customer_key = stg_sales__customers.customer_key
 )
 

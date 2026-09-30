@@ -1,4 +1,4 @@
 select
     package_type_key
     , package_type_name
-from {{ ref('stg_warehouse__package_types') }}
+from {{ ref('stg_warehouse__package_types') }} as stg_warehouse__package_types

@@ -12,8 +12,8 @@ select
     , stg_application__countries.country_formal_name
     , stg_application__countries.country_type
     , stg_application__countries.latest_recored_population as country_population
-from {{ ref('stg_application__cities') }}
-left join {{ ref('stg_application__state_provinces') }}
+from {{ ref('stg_application__cities') }} as stg_application__cities
+left join {{ ref('stg_application__state_provinces') }} as stg_application__state_provinces
     on stg_application__cities.state_province_key = stg_application__state_provinces.state_province_key
-left join {{ ref('stg_application__countries') }}
+left join {{ ref('stg_application__countries') }} as stg_application__countries
     on stg_application__state_provinces.country_key = stg_application__countries.country_key
