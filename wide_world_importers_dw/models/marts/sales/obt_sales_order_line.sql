@@ -89,7 +89,7 @@ select
     , dim_sales_order_line_picking_completed_date.full_date as sales_order_line_picking_completed_date_full_date
 
 from {{ ref('fct_sales_order_line') }} as fsol
-left join {{ ref('dim_customer') }}
+left join {{ ref('dim_customer') }} as dim_customer
     on fsol.customer_key = dim_customer.customer_key
 left join {{ ref('dim_customer') }} as dim_bill_to_customer
     on fsol.bill_to_customer_key = dim_bill_to_customer.customer_key
@@ -99,9 +99,9 @@ left join {{ ref('dim_person') }} as dim_picked_by_person
     on fsol.picked_by_person_key = dim_picked_by_person.person_key
 left join {{ ref('dim_person') }} as dim_contact_person
     on fsol.contact_person_key = dim_contact_person.person_key
-left join {{ ref('dim_stock_item') }}
+left join {{ ref('dim_stock_item') }} as dim_stock_item
     on fsol.stock_item_key = dim_stock_item.stock_item_key
-left join {{ ref('dim_package_type') }}
+left join {{ ref('dim_package_type') }} as dim_package_type
     on fsol.package_type_key = dim_package_type.package_type_key
 left join {{ ref('dim_date') }} as dim_order_date
     on fsol.order_date_key = dim_order_date.date_key

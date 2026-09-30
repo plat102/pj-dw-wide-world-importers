@@ -19,12 +19,12 @@ select
     , stg_warehouse__stock_items.typical_weight_per_unit
     , stg_warehouse__colors.color_name
     , stg_purchasing__suppliers.supplier_name
-from {{ ref('stg_warehouse__stock_items') }}
+from {{ ref('stg_warehouse__stock_items') }} as stg_warehouse__stock_items
 left join {{ ref('stg_warehouse__package_types') }} as package_type_unit
     on stg_warehouse__stock_items.unit_package_type_key = package_type_unit.package_type_key
 left join {{ ref('stg_warehouse__package_types') }} as package_type_outer
     on stg_warehouse__stock_items.outer_package_type_key = package_type_outer.package_type_key
-left join {{ ref('stg_warehouse__colors') }}
+left join {{ ref('stg_warehouse__colors') }} as stg_warehouse__colors
     on stg_warehouse__stock_items.color_key = stg_warehouse__colors.color_key
-left join {{ ref('stg_purchasing__suppliers') }}
+left join {{ ref('stg_purchasing__suppliers') }} as stg_purchasing__suppliers
     on stg_warehouse__stock_items.supplier_key = stg_purchasing__suppliers.supplier_key

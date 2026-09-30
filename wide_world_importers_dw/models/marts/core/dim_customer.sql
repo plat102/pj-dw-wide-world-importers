@@ -37,16 +37,16 @@ select
     , stg_sales__customers.delivery_postal_code
     , nullif(trim(concat_ws(' ', stg_sales__customers.postal_address_line_1, stg_sales__customers.postal_address_line_2)), '') as postal_address
     , stg_sales__customers.postal_postal_code
-from {{ ref('stg_sales__customers') }}
-left join {{ ref('stg_sales__customer_categories') }}
+from {{ ref('stg_sales__customers') }} as stg_sales__customers
+left join {{ ref('stg_sales__customer_categories') }} as stg_sales__customer_categories
     on stg_sales__customers.customer_category_key = stg_sales__customer_categories.customer_category_key
-left join {{ ref('stg_sales__buying_groups') }}
+left join {{ ref('stg_sales__buying_groups') }} as stg_sales__buying_groups
     on stg_sales__customers.buying_group_key = stg_sales__buying_groups.buying_group_key
 left join {{ ref('stg_application__people') }} as person_primary
     on stg_sales__customers.primary_contact_person_key = person_primary.person_key
 left join {{ ref('stg_application__people') }} as person_alternate
     on stg_sales__customers.alternate_contact_person_key = person_alternate.person_key
-left join {{ ref('stg_application__delivery_methods') }}
+left join {{ ref('stg_application__delivery_methods') }} as stg_application__delivery_methods
     on stg_sales__customers.delivery_method_key = stg_application__delivery_methods.delivery_method_key
 left join {{ ref('int_cities__joined') }} as city_delivery
     on stg_sales__customers.delivery_city_key = city_delivery.city_key
