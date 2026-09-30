@@ -76,6 +76,8 @@ DuckLake decides how a raw table is stored. A large one becomes Parquet under th
 
 **`-volume.max=10` is a real ceiling, and one bucket reaches it at about 7 GiB.** SeaweedFS gives each bucket its own collection and grows a collection seven volumes at a time, so the `wwi` bucket holds 7 of the 10 one-GiB volumes and a second bucket could not be written to at all. Every extract, build and compare writes a full copy of each table into the lake, and time travel keeps every copy until its snapshot expires. A store that fills up fails the next load halfway. `make maintain` expires snapshots older than `KEEP_DAYS` (7 unless set), merges small files, and deletes every file no kept snapshot reads, orphans from failed writes included; the newest snapshot always survives, and `make compare` builds the two it needs. `make maintain DRY_RUN=1` reports without changing anything. It must not run alongside `extract` or `build`: two DuckLake writers conflict. A store that is full anyway is reset with `make clean_storage` and rebuilt.
 
+**Both published ports listen on loopback only.** The S3 identity is the store's admin and the catalog user is the Postgres superuser, and Docker's published ports go around a host firewall. `BIND_ADDRESS` in `.env` changes that, knowingly.
+
 ## Boundaries
 
 The extraction half holds the source credential; nothing downstream may reach the source. Three `import-linter` contracts fail `make lint` when that breaks:
@@ -87,6 +89,8 @@ The extraction half holds the source credential; nothing downstream may reach th
 | Layered: `utils` → `config` → `connectors` → `ingestion`/`warehouse` → `cli` | the core reaching back up; a new module escaping the layering |
 
 Each was shown to fail before it was trusted.
+
+The contracts stop an import, not a credential sitting in a process's environment. So the Makefile exports a named list of variables (`LAKE_ENV`) instead of all of `.env`, and hands `MSSQL_CONNECTION_STRING` to `make extract` alone, even when it comes from the shell. `tests/unit/test_make_env.py` runs every recipe with a stand-in `uv` and fails when the source credential reaches any other one, or when the code reads a variable `LAKE_ENV` does not export.
 
 ## Data model
 
