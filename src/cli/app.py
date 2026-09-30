@@ -43,6 +43,13 @@ def _catalog(_: argparse.Namespace) -> str:
     return catalog.report(ducklake.connect())
 
 
+def _maintain(args: argparse.Namespace) -> str:
+    from connectors import ducklake
+    from warehouse import maintain
+
+    return maintain.run(ducklake.connect(), keep_days=args.keep_days, dry_run=args.dry_run)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="wwi", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -61,6 +68,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("catalog", help="the column catalog, as markdown, from the manifest")
     p.set_defaults(handler=_catalog)
+
+    p = sub.add_parser("maintain", help="expire old snapshots and delete the files they held")
+    p.add_argument("--keep-days", type=int, default=7)
+    p.add_argument("--dry-run", action="store_true", help="report what would go; change nothing")
+    p.set_defaults(handler=_maintain)
 
     return parser
 

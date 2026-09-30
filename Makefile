@@ -19,7 +19,7 @@ DBT_PROJECT = --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
 # Read-only SELECT on the source is enough; `extract` never writes to it.
 SOURCE_DB := WideWorldImporters
 
-.PHONY: up down clean_storage install parse build extract compare shape catalog lint format typecheck test check
+.PHONY: up down clean_storage install parse build extract compare shape catalog maintain lint format typecheck test check
 
 # --- storage layer ----------------------------------------------------------------------
 # Credentials come from .env; an unset one stops the stack rather than guessing a value.
@@ -87,6 +87,13 @@ catalog: parse
 		&& mv docs/data_warehouse_catalog.md.tmp docs/data_warehouse_catalog.md \
 		|| { rm -f docs/data_warehouse_catalog.md.tmp; exit 1; }
 	@echo "wrote docs/data_warehouse_catalog.md"
+
+# Expires snapshots older than KEEP_DAYS, merges small files, and deletes the files no kept
+# snapshot reads. The newest snapshot always survives. Never while `extract` or `build` runs:
+# DuckLake commits from two writers conflict. `make maintain DRY_RUN=1` only reports.
+KEEP_DAYS ?= 7
+maintain:
+	uv run wwi maintain --keep-days $(KEEP_DAYS) $(if $(DRY_RUN),--dry-run)
 
 # Two builds of one raw load must be identical; names the column when not. Not part of `make
 # test`, which deselects integration tests, because it costs two full builds. `--require-lake`
