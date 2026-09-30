@@ -28,7 +28,9 @@ select
     e.week_day        as expected_week_day,        d.week_day        as actual_week_day,
     e.day_is_weekday  as expected_day_is_weekday,  d.day_is_weekday  as actual_day_is_weekday
 from expected e
-left join {{ ref('dim_date') }} d on d.full_date = e.full_date
+-- `.render()`: dim_date is generated, not read from raw, so `make build_empty` builds all of it,
+-- and this test must read all of it too rather than the zero rows `--empty` gives every ref.
+left join {{ ref('dim_date').render() }} d on d.full_date = e.full_date
 where d.full_date is null
    or d.fiscal_year    is distinct from e.fiscal_year
    or d.fiscal_qtr     is distinct from e.fiscal_qtr

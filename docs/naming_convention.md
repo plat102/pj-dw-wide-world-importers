@@ -151,6 +151,7 @@ from high_value_customers
 
 - Use `{{ ref('model_name') }}` for all model dependencies
 - Enables dbt lineage tracking
+- Give every `ref` in a `from` or `join` an alias, and qualify columns with it: `from {{ ref('stg_sales__orders') }} as stg_sales__orders`. Under `--empty`, dbt renders a ref as an unnamed subquery, so a column qualified by the relation's own name stops resolving. `make build_empty` fails on it
 
 ### Configuration
 
@@ -186,8 +187,9 @@ This rule covers documentation describing the *present*. A dated measurement is 
 
 - Generic tests go in the `schema.yml` beside the models they cover, one per layer directory.
 - Every dimension key carries `unique` and `not_null`; every foreign key on the fact carries `relationships`. That is a rule, not a target — a new key without both is incomplete.
-- Singular tests go in `tests/`, named `assert_<what_must_be_true>.sql`. Two exist: `assert_dim_date_calendar` and `assert_obt_keeps_fact_grain`. A project generic test goes in `tests/generic/`, named for the property it asserts: `matches_source_rowcount`.
+- Singular tests go in `tests/`, named `assert_<what_must_be_true>.sql`. For example `assert_dim_date_calendar` and `assert_obt_keeps_fact_grain`. A test that reads a model `--empty` leaves whole — `dim_date` is generated, not read from raw — reads it through `{{ ref('dim_date').render() }}`, or `make build_empty` hands it zero rows. A project generic test goes in `tests/generic/`, named for the property it asserts: `matches_source_rowcount`.
 - **A test is not trusted until it has been seen to fail.** Break the thing it guards, watch it go red, put it back. A test that has only ever been green says nothing about whether it works, and in this project one negative test passed for the wrong reason until it was provoked properly.
+- dbt unit tests go in `_<layer>__unit_tests.yml` beside the models they cover: fixed input rows, fixed expected rows, for logic where the output can be stated by hand. They run in `make build_empty`, so CI runs them.
 - The mart's column list is a contract (`contract: enforced`) — a test in a different shape, which fails the build rather than a test run.
 
 ## Markdown in this repository

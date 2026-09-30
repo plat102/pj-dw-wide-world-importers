@@ -50,6 +50,19 @@ def _maintain(args: argparse.Namespace) -> str:
     return maintain.run(ducklake.connect(), keep_days=args.keep_days, dry_run=args.dry_run)
 
 
+def _raw_schema(_: argparse.Namespace) -> str:
+    from connectors import ducklake
+    from ingestion import raw_schema
+
+    return raw_schema.ddl(ducklake.connect())
+
+
+def _empty_lake(_: argparse.Namespace) -> str:
+    from ingestion import raw_schema
+
+    return raw_schema.create()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="wwi", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -73,6 +86,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--keep-days", type=int, default=7)
     p.add_argument("--dry-run", action="store_true", help="report what would go; change nothing")
     p.set_defaults(handler=_maintain)
+
+    p = sub.add_parser("raw-schema", help="the raw tables dbt reads, as DDL, from the lake")
+    p.set_defaults(handler=_raw_schema)
+
+    p = sub.add_parser("empty-lake", help="a local lake holding the raw schema and no rows")
+    p.set_defaults(handler=_empty_lake)
 
     return parser
 

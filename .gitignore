@@ -39,6 +39,9 @@ data/
 *.duckdb
 *.duckdb.wal
 
+# The local lake `make build_empty` builds on. Recreated every run from src/ingestion/raw_schema.sql.
+.empty_lake/
+
 __pycache__/
 *.py[cod]
 

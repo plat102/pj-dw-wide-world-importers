@@ -1,24 +1,23 @@
-# Static gates on every pull request. Nothing here builds the warehouse: bronze is loaded from a
-# SQL Server that CI has no access to, and this repository ships no data to build on instead.
-# The dbt tests run on a developer machine after `make extract`.
+# Every pull request runs `make check`: lint, import boundaries, types, unit tests, and
+# `make build_empty` -- every dbt model, data test and unit test, built against the engine on a
+# local lake that holds the raw schema and no rows. What it cannot see is the data itself: raw is
+# loaded from a SQL Server CI has no access to, so row-level checks still run after `make extract`.
 
 name: build
 
 on:
   pull_request:
   push:
-    branches: [main, phase2]
+    branches: [main]
+
+# Reads the repository and nothing else: no step publishes, comments or writes back.
+permissions:
+  contents: read
 
 jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 8
-    # Dummy values: `dbt parse` renders the profile but never connects, and nothing else here
-    # touches a database. Not repository secrets -- they guard nothing.
-    env:
-      CATALOG_USER: ci
-      S3_ACCESS_KEY: ci
-      S3_SECRET_KEY: ci
     steps:
       - uses: actions/checkout@v7
       # Pinned exactly: setup-uv publishes no floating tag past v7, and v10 targets node 24.
@@ -27,10 +26,7 @@ jobs:
           enable-cache: true
       - run: make install
 
-      - name: Lint, import boundaries, types and unit tests
+      # No database, no secrets: the dbt target `empty` attaches a lake built from
+      # src/ingestion/raw_schema.sql and needs no variable. See `make build_empty`.
+      - name: Lint, import boundaries, types, unit tests, and dbt on an empty raw
         run: make check
-
-      # Compiling the dbt project needs no containers and catches a bad ref, a Jinja error or a
-      # YAML mistake before merge -- the only dbt signal left now that CI does not build. No
-      # profile step: `make` points dbt at the repository's own profiles.yml.
-      - run: make parse
