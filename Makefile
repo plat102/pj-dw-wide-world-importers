@@ -2,9 +2,18 @@
 # `uv run` resolves the environment from uv.lock; no venv activation needed.
 
 # make does not read .env by itself; `-include` so a missing one is not fatal. Keep values free
-# of `#` -- make truncates the rest of the line.
+# of `#`, where make truncates the rest of the line, and of `$`, which make expands.
 -include .env
-export
+# Named, not a bare `export`: that handed every variable in .env to every recipe, so dbt ran with
+# the source credential in its environment. These are what wwi and the dbt profile read, and
+# tests/unit/test_make_env.py fails when the code reads one this list lacks. A name left unset
+# is not exported at all, so the code's default applies rather than an empty string.
+LAKE_ENV := S3_ACCESS_KEY S3_SECRET_KEY S3_ENDPOINT S3_BUCKET S3_USE_SSL LAKE_PREFIX \
+	CATALOG_USER CATALOG_DB CATALOG_HOST CATALOG_PORT
+export $(foreach v,$(LAKE_ENV),$(if $(filter undefined,$(origin $(v))),,$(v)))
+# The source credential reaches `extract` and nothing else -- not even when it comes from the
+# shell rather than .env. See the target-specific export on `extract`.
+unexport MSSQL_CONNECTION_STRING
 # libpq reads the catalog password from here -- for wwi, dlt and dbt alike -- so no connection
 # string carries it, and no error can echo it.
 export PGPASSWORD := $(CATALOG_PASSWORD)
@@ -72,6 +81,7 @@ build:
 
 # dlt writes into the lake itself, so there is nothing to upload and nothing to project: the
 # raw schema is the record of what landed.
+extract: export MSSQL_CONNECTION_STRING := $(MSSQL_CONNECTION_STRING)
 extract:
 	uv run wwi extract --source-db $(SOURCE_DB)
 

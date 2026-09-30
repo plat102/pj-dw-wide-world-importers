@@ -27,7 +27,9 @@ services:
     ports:
       # The S3 API is the only port anything outside the container speaks to. The master and filer
       # ports stay internal; the healthcheck below reaches the master from inside.
-      - "${S3_PORT:-8333}:8333"
+      # Loopback only: this identity is the store's admin, and Docker's published ports go around
+      # a host firewall. BIND_ADDRESS=0.0.0.0 in .env opens it to the network, knowingly.
+      - "${BIND_ADDRESS:-127.0.0.1}:${S3_PORT:-8333}:8333"
     volumes:
       - s3-data:/data
       - ./infrastructure/seaweedfs/s3-identities.template.json:/etc/seaweedfs/s3-identities.template.json:ro
@@ -49,7 +51,8 @@ services:
       POSTGRES_PASSWORD: ${CATALOG_PASSWORD:?set CATALOG_PASSWORD -- copy .env.example to .env}
       POSTGRES_DB: ${CATALOG_DB:-ducklake}
     ports:
-      - "${CATALOG_PORT:-55432}:5432"
+      # Loopback only, like the store: CATALOG_USER is the database superuser.
+      - "${BIND_ADDRESS:-127.0.0.1}:${CATALOG_PORT:-55432}:5432"
     volumes:
       - catalog-data:/var/lib/postgresql/data
     healthcheck:
