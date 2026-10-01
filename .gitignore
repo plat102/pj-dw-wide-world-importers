@@ -14,6 +14,10 @@
 .vs/*
 .idea/*
 
+# Claude Code: .claude/settings.json is shared and tracked; the local file holds one person's
+# permission overrides.
+.claude/settings.local.json
+
 /secrets/*
 
 .venv/*
