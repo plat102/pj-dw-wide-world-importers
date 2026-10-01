@@ -55,7 +55,7 @@ Need the stack (`make up`, Docker) and a filled `.env`: `make build`, `make shap
 ## Boundaries
 
 - Never read, print or edit `.env`; change `.env.example` and tell the user.
-- Ask before `make extract` (reads the source database), `make maintain` (deletes snapshot files), `make clean_storage` (deletes the lake) or `docker compose down`.
+- Ask before `make extract` (reads the source database), `make maintain` (deletes snapshot files), `make clean_storage` (deletes the lake), `make compare` (builds twice into the live lake) or `docker compose down`.
 - Never hand-edit generated files: `docs/data_warehouse_catalog.md` (`make catalog`), `src/ingestion/raw_schema.sql` (`make raw_schema`), `uv.lock` (`uv lock`).
 - Do not hand `MSSQL_CONNECTION_STRING` to any recipe other than `extract` (`Makefile:16`, `Makefile:84`).
 - Do not commit or push unless asked.

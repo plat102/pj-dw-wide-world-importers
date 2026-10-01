@@ -8,7 +8,6 @@
       "Bash(make test)",
       "Bash(make build_empty)",
       "Bash(make parse)",
-      "Bash(make format)",
       "Bash(make shape)",
       "Bash(uv run pytest *)",
       "Bash(uv run ruff check *)",
@@ -24,9 +23,18 @@
     ],
     "ask": [
       "Bash(make extract *)",
+      "Bash(make *extract*)",
+      "Bash(uv run wwi *extract*)",
       "Bash(make maintain *)",
+      "Bash(make *maintain*)",
+      "Bash(uv run wwi *maintain*)",
       "Bash(make clean_storage *)",
+      "Bash(make *clean_storage*)",
+      "Bash(make *compare*)",
+      "Bash(uv run pytest *integration*)",
+      "Bash(uv run pytest *require-lake*)",
       "Bash(docker compose down *)",
+      "Bash(docker compose *down*)",
       "Bash(git push *)"
     ],
     "deny": [
