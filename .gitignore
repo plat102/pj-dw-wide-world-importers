@@ -1,5 +1,5 @@
 .vscode/*
-!.vscode/settings.json
+# settings.json stays ignored: the Python extension rewrites it with machine-local env state.
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
@@ -22,24 +22,25 @@ logs/*
 
 wide_world_importers_dw/profiles*.yml
 
-# package-lock.yml is tracked on purpose: it is what pins dbt_utils across machines.
+# dbt writes its anonymous-usage id next to the profile. That is now this directory, so ignore it
+# here; it is per-machine state, not configuration.
+.user.yml
 
 
 *.env
 */secrets/*
-# The Parquet snapshot is published output, never repository content. Only the manifest that
-# describes it is tracked -- see data/snapshots/manifest.json.
-#
-# data/demo/ is deliberately NOT ignored. It is a different artifact: a reduced, labelled
-# derivative of the snapshot, ~2.4 MB, so a fresh clone has real rows to build and verify against.
-# It carries kind: demo_fixture and derived_from in its own manifest. Regenerate with
-# `make demo_fixture`; never hand-edit it.
-data/raw/
+# Extracted data is warehouse content, never repository content. `make extract` loads it into
+# the lake, so nothing lands here any more; the rule stays so an older working copy cannot commit
+# one by accident.
+data/
 
 # Nothing in the build produces this any more; the read-only DuckDB client recreates it on
 # connect, so it stays ignored rather than tracked.
 *.duckdb
 *.duckdb.wal
+
+# The local lake `make build_empty` builds on. Recreated every run from src/ingestion/raw_schema.sql.
+.empty_lake/
 
 __pycache__/
 *.py[cod]

@@ -1,68 +1,66 @@
-"""Extract the declared tables to local Parquet, one dlt resource per call.
+"""Extract the declared tables into the lake's raw schema: one dlt pipeline, one run.
 
-Staged locally first so the manifest's SHA256 covers exactly the bytes the upload publishes. The
-resources are extracted one at a time because dlt interleaves them within a single call and one
-connection holds one result set -- interleaving is what would break the one-transaction guarantee.
+dlt attaches the same DuckLake the warehouse is built in -- same catalog, same metadata schema,
+same data path -- and loads each table into the `raw` schema. Nothing is staged locally, and
+nothing describes what landed except the lake itself.
 """
 
 from __future__ import annotations
 
-import json
-import shutil
-from datetime import UTC, datetime
-from pathlib import Path
+from typing import Any
 
 import dlt
-import pyarrow.parquet as pq
+import sqlalchemy as sa
+from dlt.common.configuration.specs import AwsCredentials
+from dlt.common.storages.configuration import FilesystemConfiguration
+from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
 from dlt.sources.sql_database import sql_table
 
-from connectors import mssql
-from contracts import tables as tables_contract
+from config import settings
+from connectors import ducklake, mssql
+from ingestion import tables as tables_contract
 from utils.exceptions import ToolingError
 
-
-def clear_previous_run(out_dir: Path) -> None:
-    """Delete only what a previous extraction wrote; rmtree would take the manifest too."""
-    for path in out_dir.glob("*.parquet"):
-        path.unlink()
-    (out_dir / "_extraction.json").unlink(missing_ok=True)
-    shutil.rmtree(out_dir / "_dlt", ignore_errors=True)
+PIPELINE_NAME = "wwi_raw"
 
 
-def extract(source_db: str, output_dir: Path) -> str:
-    """Read every declared table inside one transaction and write Parquet. Returns a summary."""
-    config = tables_contract.load()
-    tables = config["tables"]
-    schema_version = config["schema_version"]
+def destination() -> Any:
+    """The lake the warehouse already lives in, as dlt's ducklake destination.
 
-    conn_str = mssql.connection_string(source_db)
-    source_facts = mssql.inspect_source(conn_str, source_db)
-
-    engine = mssql.pinned_engine(conn_str)
-    raw, cursor, transaction_id = mssql.open_snapshot_transaction(engine)
-    mssql.check_declared_columns(engine, tables)
-    source_counts = mssql.count_source_rows(engine, tables)
-
-    load_timestamp = datetime.now(UTC).isoformat(timespec="seconds")
-    out_dir = output_dir.resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
-    clear_previous_run(out_dir)
-
-    # Staged locally so the manifest's SHA256 covers exactly the bytes the upload publishes.
-    staging = out_dir / "_dlt"
-    # Ignored below: dlt's pipeline() overloads accept only the string form of `destination`,
-    # but the Destination instance is what carries bucket_url, so the instance is what we pass.
-    pipeline = dlt.pipeline(  # type: ignore[call-overload]
-        pipeline_name="wwi_snapshot",
-        destination=dlt.destinations.filesystem(bucket_url=staging.as_uri()),
-        dataset_name="raw",
-        progress=None,
+    Catalog, metadata schema and data path all have to match the ATTACH the dbt profile renders,
+    or this writes a second lake into the same Postgres instead of the one dbt reads.
+    """
+    return dlt.destinations.ducklake(
+        credentials=DuckLakeCredentials(
+            ducklake_name=ducklake.CATALOG,
+            metadata_schema=settings.METADATA_SCHEMA,
+            # dlt parses a URL; duckdb's own ATTACH takes the libpq form. Same database.
+            catalog=settings.catalog_url(),
+            storage=FilesystemConfiguration(
+                bucket_url=settings.data_path(),
+                credentials=AwsCredentials(
+                    aws_access_key_id=settings.require("S3_ACCESS_KEY"),
+                    aws_secret_access_key=settings.require("S3_SECRET_KEY"),
+                    endpoint_url=settings.endpoint_url(),
+                    # Named because duckdb writes the secret verbatim: unset arrives as 'None'.
+                    region_name="us-east-1",
+                    s3_url_style="path",
+                ),
+            ),
+        )
     )
 
-    resources = []
-    for entry in tables:
+
+def resources(engine: sa.Engine, specs: list[dict]) -> list[Any]:
+    """One standalone `sql_table` resource per declared table.
+
+    Columns are named rather than reflected wholesale, and `full_with_precision` keeps decimal
+    scale and datetime precision intact.
+    """
+    built = []
+    for entry in specs:
         schema, table = entry["source"].split(".")
-        resources.append(
+        built.append(
             sql_table(
                 credentials=engine,
                 schema=schema,
@@ -73,65 +71,59 @@ def extract(source_db: str, output_dir: Path) -> str:
                 write_disposition="replace",
             ).with_name(entry["output"])
         )
+    return built
 
-    # Split rather than `pipeline.run` so the transaction ends with the reads. One resource per
-    # call, because dlt interleaves them within a call and one connection holds one result set.
-    for resource in resources:
-        pipeline.extract([resource], loader_file_format="parquet", workers=1)
 
-    # Before anything is published: the files would be each valid and collectively wrong.
-    mssql.assert_same_transaction(cursor, transaction_id)
-    cursor.execute("COMMIT TRANSACTION")
-    raw.close()
+def extract(source_db: str) -> str:
+    """Load the source into the lake's raw schema and report what landed."""
+    specs = tables_contract.load()["tables"]
 
-    pipeline.normalize()
-    print(pipeline.load())
+    # The pyarrow backend adds neither bookkeeping column by default. The row id stays off: it is
+    # random per row, so two extractions of one source would never agree again.
+    dlt.config["normalize.parquet_normalizer.add_dlt_load_id"] = True
 
-    written = flatten_output(staging, out_dir, tables)
+    pipeline = dlt.pipeline(
+        pipeline_name=PIPELINE_NAME,
+        destination=destination(),
+        dataset_name=settings.RAW_SCHEMA,
+    )
+    # A package left by a failed run makes `run()` load that package and return, extracting
+    # nothing new -- so the counts below would be compared against old rows. Refused, not
+    # silently discarded: whoever runs this decides what happens to the unfinished load.
+    if pipeline.has_pending_data:
+        raise ToolingError(
+            f"pipeline {PIPELINE_NAME} holds an unfinished load package from an earlier run, and "
+            "dlt would load it instead of extracting the source. Discard it with "
+            f"`uv run dlt pipeline {PIPELINE_NAME} abort-packages`, then extract again"
+        )
 
-    drift = {n: (source_counts[n], written[n]) for n in written if source_counts[n] != written[n]}
+    engine = mssql.engine(mssql.connection_string(source_db))
+    version = mssql.inspect_source(engine, source_db)
+    mssql.check_declared_columns(engine, specs)
+    expected = mssql.count_source_rows(engine, specs)
+
+    info = pipeline.run(resources(engine, specs), loader_file_format="parquet")
+    print(info)
+
+    # Read back through an attach of our own, not dlt's: if the two ever stop naming one lake, it
+    # surfaces here rather than three models into a build.
+    conn = ducklake.connect()
+    landed = ducklake.row_counts(conn, settings.RAW_SCHEMA, [e["output"] for e in specs])
+    snapshot = ducklake.latest_snapshot(conn)
+    conn.close()
+
+    # Rows hidden from the login are refused before the load, by count_source_rows. This catches
+    # the load itself landing a different number than the source holds.
+    drift = {n: (expected[n], landed[n]) for n in landed if expected[n] != landed[n]}
     if drift:
         detail = ", ".join(
-            f"{n}: source {a:,} vs parquet {b:,}" for n, (a, b) in sorted(drift.items())
+            f"{n}: source {a:,} vs landed {b:,}" for n, (a, b) in sorted(drift.items())
         )
         raise ToolingError(f"row counts do not match the source: {detail}")
-    (out_dir / "_extraction.json").write_text(
-        json.dumps(
-            {
-                "schema_version": schema_version,
-                "load_timestamp": load_timestamp,
-                "source_database": source_db,
-                **source_facts,
-                "files": written,
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
+
+    return (
+        f"{ducklake.CATALOG}.{settings.RAW_SCHEMA}: {len(landed)} tables, "
+        f"{sum(landed.values()):,} rows, load {', '.join(info.loads_ids)}, "
+        f"lake snapshot {snapshot}\n"
+        f"source {version}"
     )
-    return f"{len(written)} tables written to {out_dir}/ at load_timestamp {load_timestamp}"
-
-
-def flatten_output(staging: Path, out_dir: Path, tables: list[dict]) -> dict[str, int]:
-    """dlt writes <dataset>/<table>/<load_id>.<id>.parquet; the contract wants one flat file."""
-    written: dict[str, int] = {}
-    missing = [e["output"] for e in tables if not list(staging.rglob(f"{e['output']}/*.parquet"))]
-    if missing:
-        # Row-level security filters silently; a missing file is never success.
-        raise ToolingError(f"no parquet produced for: {', '.join(missing)}")
-
-    for entry in tables:
-        name = entry["output"]
-        parts = sorted(staging.rglob(f"{name}/*.parquet"))
-        target = out_dir / f"{name}.parquet"
-        if len(parts) == 1:
-            shutil.move(str(parts[0]), target)
-        else:
-            table = pq.read_table([str(p) for p in parts])
-            pq.write_table(table, target, compression="snappy")
-        rows = pq.ParquetFile(target).metadata.num_rows
-        if rows == 0:
-            raise ToolingError(f"{name} extracted 0 rows; every declared table must carry data")
-        written[name] = rows
-    shutil.rmtree(staging, ignore_errors=True)
-    return written
-

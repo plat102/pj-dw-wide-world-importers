@@ -1,100 +1,32 @@
-# Builds the warehouse on every pull request, on the same compose stack a laptop runs.
-# The real snapshot is never here, so bronze is seeded from the committed fixture in data/demo/:
-# real rows and real checksums, so the referential tests have something to fail on.
+# Every pull request runs `make check`: lint, import boundaries, types, unit tests, and
+# `make build_empty` -- every dbt model, data test and unit test, built against the engine on a
+# local lake that holds the raw schema and no rows. What it cannot see is the data itself: raw is
+# loaded from a SQL Server CI has no access to, so row-level checks still run after `make extract`.
 
 name: build
 
 on:
   pull_request:
   push:
-    branches: [main, phase2]
+    branches: [main]
+
+# Reads the repository and nothing else: no step publishes, comments or writes back.
+permissions:
+  contents: read
 
 jobs:
-  # Fails in seconds and needs no Docker, so a lint or type error never waits on a container stack.
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v7
+      # Pinned exactly: setup-uv publishes no floating tag past v7, and v10 targets node 24.
       - uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
       - run: make install
-      - name: Lint, import boundaries, types, unit tests, and sources.yml drift
+
+      # No database, no secrets: the dbt target `empty` attaches a lake built from
+      # src/ingestion/raw_schema.sql and needs no variable. See `make build_empty`.
+      - name: Lint, import boundaries, types, unit tests, and dbt on an empty raw
         run: make check
-
-  build:
-    needs: quality
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    env:
-      # Local-only credentials for containers this job throws away. Not repository secrets: they
-      # guard nothing that outlives the runner.
-      S3_ACCESS_KEY: ci-access-key
-      S3_SECRET_KEY: ci-secret-key-not-a-real-credential
-      S3_ENDPOINT: localhost:8333
-      S3_BUCKET: wwi
-      S3_USE_SSL: "false"
-      CATALOG_USER: ducklake
-      CATALOG_PASSWORD: ci-catalog-password
-      CATALOG_DB: ducklake
-      CATALOG_HOST: localhost
-      CATALOG_PORT: "55432"
-      LAKE_PREFIX: lake
-      # MSSQL_CONNECTION_STRING is deliberately absent. The transform stage must never reach the
-      # source database, and a build that needs it would fail here rather than pass quietly.
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        # Pinned exactly: setup-uv publishes no floating tag past v7, and v10 is what targets
-        # node 24. checkout has one, so it uses it and gets patches for free.
-        uses: astral-sh/setup-uv@v10.0.1
-        with:
-          enable-cache: true
-
-      - name: Install the pinned environment
-        run: make install
-
-      # $HOME/.dbt does not exist on a runner, and dbt_packages/ is gitignored while four models
-      # call dbt_utils. Without both steps the run stops at Parse.
-      - name: Point dbt at the sample profile
-        run: mkdir -p ~/.dbt && cp profiles.sample.yml ~/.dbt/profiles.yml
-
-      - name: Install dbt packages
-        run: make deps
-
-      - name: Start the object store and the DuckLake catalog
-        run: make up
-
-      - name: Publish the fixture to the store and verify what landed
-        run: make seed_demo
-
-      - name: Parse
-        # Cheap early signal for Jinja and YAML errors. Not a fix for the flake below.
-        run: make parse
-
-      - name: Build and test
-        # Every test runs -- including assert_staging_matches_manifest, which an empty seed could
-        # not satisfy and which was excluded here until the fixture landed. It was the only
-        # assertion the staging layer had.
-
-        # A cold parse used to sometimes mis-schedule the tests in tests/, and a re-run passed. The
-        # three role-playing models that called get_filtered_columns_in_relation at compile time --
-        # the most plausible cause, since they made parse order depend on dim_person existing --
-        # have since been deleted. Whether it recurs is worth watching rather than declaring fixed.
-        run: make build_demo
-
-      - name: Report the warehouse shape
-        if: always()
-        run: make shape
-
-      - name: Container logs
-        if: failure()
-        run: docker compose logs --tail 100
-
-      - name: Stop the stack
-        if: always()
-        run: make clean_storage

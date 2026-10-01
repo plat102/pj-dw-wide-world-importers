@@ -1,0 +1,63 @@
+# The profile dbt actually uses: `make` passes `--profiles-dir` at this file's directory, so
+# nothing is copied anywhere and ~/.dbt is never read. It is tracked because every value comes
+# from the environment -- there is nothing to fill in and no secret to leak. The top-level key
+# must match `profile:` in dbt_project.yml.
+
+wide_world_importers_dw:
+  outputs:
+    # Default target: snapshot in, DuckLake out -- Parquet on the store, catalog in Postgres.
+    # `path` is in-memory because the warehouse lives in the lake, not in a local file.
+    lake:
+      type: duckdb
+      path: ":memory:"
+      # Not a placeholder: concurrent writes make DuckLake commits conflict, and it costs nothing
+      # because the build is bound by S3 round trips.
+      threads: 1
+      extensions:
+        - httpfs
+        - ducklake
+        - postgres
+      attach:
+        # One connection string, assembled from the environment. The catalog is a real database,
+        # so anything that can reach it and the bucket sees the same warehouse. No password: libpq
+        # reads PGPASSWORD, which `make` sets from CATALOG_PASSWORD.
+        - path: >-
+            ducklake:postgres:dbname={{ env_var('CATALOG_DB', 'ducklake') }}
+            host={{ env_var('CATALOG_HOST', 'localhost') }}
+            port={{ env_var('CATALOG_PORT', '55432') }}
+            user={{ env_var('CATALOG_USER') }}
+          alias: lake
+          options:
+            # Both halves must attach the same lake, and that now means the same catalog metadata:
+            # bronze is a schema in it. Stated rather than inherited from the role's search path,
+            # so dlt and dbt provably agree -- see settings.METADATA_SCHEMA.
+            metadata_schema: public
+            data_path: "s3://{{ env_var('S3_BUCKET', 'wwi') }}/{{ env_var('LAKE_PREFIX', 'lake') }}/"
+      database: lake
+      schema: main
+      secrets:
+        - type: s3
+          key_id: "{{ env_var('S3_ACCESS_KEY') }}"
+          secret: "{{ env_var('S3_SECRET_KEY') }}"
+          endpoint: "{{ env_var('S3_ENDPOINT', 'localhost:8333') }}"
+          url_style: path
+          # The same rule as settings.flag: 1/true/yes, any case and padding, is on; anything else
+          # is off. Passed through raw, DuckDB rejected values Python accepted, like " true ".
+          use_ssl: "{{ (env_var('S3_USE_SSL', 'false') | trim | lower) in ['1', 'true', 'yes'] }}"
+
+    # `make build_empty`: the raw schema and no rows, in a local DuckLake that `wwi empty-lake`
+    # creates. Same engine and table format as `lake`; nothing to connect to, so no variable.
+    # The path is relative to the repository root, where `make` runs dbt. No data_path: the
+    # catalog stores the one it was created with, and a second spelling of it is refused.
+    empty:
+      type: duckdb
+      path: ":memory:"
+      threads: 1
+      extensions:
+        - ducklake
+      attach:
+        - path: "ducklake:.empty_lake/metadata.ducklake"
+          alias: lake
+      database: lake
+      schema: main
+  target: lake

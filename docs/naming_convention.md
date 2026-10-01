@@ -10,28 +10,30 @@ Naming standards and code style guidelines for consistency across the project
 
 | Layer                 | Prefix    | Materialization | Example                       |
 | --------------------- | --------- | --------------- | ----------------------------- |
-| Staging               | `stg_`  | View            | `stg_sales_customer.sql`    |
-| Intermediate          | `int_`  | View            | `int_city_flattened.sql` |
-| Analytics (Dimension) | `dim_`  | Table           | `dim_customer.sql`          |
-| Analytics (Fact)      | `fact_` | Table           | `fact_sales_order_line.sql` |
-| Marts                 | `mart_` | Table           | `mart_sales_order_line.sql` |
+| Staging               | `stg_`  | View            | `stg_sales__customers.sql`    |
+| Intermediate          | `int_`  | View            | `int_cities__joined.sql` |
+| Core (Dimension)      | `dim_`  | Table           | `dim_customer.sql`          |
+| Core (Fact)           | `fct_`  | Table           | `fct_sales_order_line.sql` |
+| Marts                 | `obt_`  | Table           | `obt_sales_order_line.sql` |
 
 ### Model Organization
 
 ```
 models/
 ├── staging/
-│   └── wide_world_importers/
-│       ├── sales/               # Grouped by source schema
-│       ├── warehouse/
-│       └── application/
+│   └── wide_world_importers/   # One directory per source, flat inside
+│       ├── __sources.yml
+│       └── stg_<schema>__<entity>.sql
 ├── intermediate/               # Joins reused by more than one model
-├── analytics/
-│   ├── dim_*.sql               # Dimension tables
-│   └── fact_*.sql              # Fact tables
 └── marts/
+    ├── core/                   # The star: conformed dimensions and the fact
+    │   ├── dim_*.sql
+    │   └── fct_*.sql
     └── sales/                  # Grouped by business domain
+        └── obt_*.sql
 ```
+
+A staging model is named for the relation it reads: `stg_<source_schema>__<entity>`, entity plural. The double underscore separates the source from the object, so `stg_sales__order_lines` reads `Sales.OrderLines`.
 
 ## Database Objects
 
@@ -42,8 +44,8 @@ Naming conventions for tables and columns in the warehouse
 | Type      | Convention                    | Example                              |
 | --------- | ----------------------------- | ------------------------------------ |
 | Dimension | Singular, snake_case          | `dim_customer`, `dim_stock_item` |
-| Fact      | Plural noun or process name   | `fact_sales_order_line`            |
-| Staging   | `stg_` prefix + source name | `stg_sales_customer`               |
+| Fact      | Plural noun or process name   | `fct_sales_order_line`            |
+| Staging   | `stg_` prefix + source name | `stg_sales__customers`               |
 
 ### Columns
 
@@ -51,9 +53,8 @@ Naming conventions for tables and columns in the warehouse
 | ------------------ | -------------------------- | -------------------------------------------------- |
 | Primary Key        | `<table>_key`            | `customer_key`, `stock_item_key`               |
 | Foreign Key        | `<referenced_table>_key` | `customer_key`, `order_date_key`               |
-| Date Surrogate Key | `<description>_date_key` | `order_date_key`, `expected_delivery_date_key` |
+| Date Key           | `<description>_date_key` | `order_date_key`, `expected_delivery_date_key` |
 | Boolean            | `is_<description>`       | `is_employee`, `is_on_credit_hold`             |
-| Surrogate Key      | `<table>_sk`             | `stock_item_sk`                                  |
 | General            | snake_case                 | `customer_name`, `unit_price`                  |
 
 **Known exceptions**, recorded rather than quietly tolerated:
@@ -65,18 +66,16 @@ Naming conventions for tables and columns in the warehouse
 
 ### Schemas
 
-The warehouse is a DuckLake lakehouse — Parquet on the object store, catalog in Postgres — and
-the layers are schemas inside its one catalog.
+The warehouse is a DuckLake lakehouse — Parquet on the object store, catalog in Postgres — and the layers are schemas inside its one catalog.
 
 | Schema      | Purpose                                       |
 | ----------- | --------------------------------------------- |
-| —           | Raw Parquet on the object store under `bronze/<snapshot-id>/`, read in place |
-| `main_stg`  | Staging (`stg_`) and intermediate (`int_`)     |
-| `main_dwh`  | Dimensional models                            |
-| `main_mart` | Business-ready denormalised tables            |
+| `raw`  | One table per entry in `src/ingestion/tables.yml`, loaded by dlt |
+| `staging`  | Staging (`stg_`) and intermediate (`int_`)     |
+| `core`  | Dimensional models                            |
+| `marts` | Business-ready denormalised tables            |
 
-`wwi_raw` / `wwi_stg` / `wwi_dwh` / `wwi_mart` were the BigQuery dataset names. That build is
-frozen; these are not the names in use.
+`wwi_raw` / `wwi_stg` / `wwi_dwh` / `wwi_mart` were the BigQuery dataset names. That build is frozen; these are not the names in use.
 
 ## SQL Style Guide
 
@@ -97,8 +96,7 @@ select
 from dim_customer
 ```
 
-Leading commas earn their keep: commenting a column out of a wide `select` is a one-character edit
-and cannot leave a dangling comma behind, which matters when the widest model has 70 columns.
+Leading commas earn their keep: commenting a column out of a wide `select` is a one-character edit and cannot leave a dangling comma behind, which matters in the mart, where the column list is long.
 
 ### Joins
 
@@ -110,7 +108,7 @@ select
     c.customer_name
     , o.order_date
 from dim_customer as c
-left join fact_sales_order_line as o
+left join fct_sales_order_line as o
     on c.customer_key = o.customer_key
 where c.is_on_credit_hold = false
 ```
@@ -126,7 +124,7 @@ with customer_orders as (
     select
         customer_key
         , count(*) as order_count
-    from fact_sales_order_line
+    from fct_sales_order_line
     group by customer_key
 ),
 
@@ -146,13 +144,14 @@ from high_value_customers
 
 ### Sources
 
-- Define in `sources.yml` with schema and table name
+- Define in `models/staging/<source>/__sources.yml` with schema and table name
 - Reference using `{{ source('schema_name', 'table_name') }}`
 
 ### References
 
 - Use `{{ ref('model_name') }}` for all model dependencies
 - Enables dbt lineage tracking
+- Give every `ref` in a `from` or `join` an alias, and qualify columns with it: `from {{ ref('stg_sales__orders') }} as stg_sales__orders`. Under `--empty`, dbt renders a ref as an unnamed subquery, so a column qualified by the relation's own name stops resolving. `make build_empty` fails on it
 
 ### Configuration
 
@@ -161,39 +160,50 @@ from high_value_customers
 
 ### Numbers in documentation and comments
 
-**Do not write a row count into a document, a model comment, or a YAML description.** It goes stale
-the moment the data span changes, in places nobody remembers to look, and competes with the
-warehouse as a source of truth.
+**Do not write a row count into a document, a model comment, or a YAML description.** It goes stale the moment the data span changes, in places nobody remembers to look, and competes with the warehouse as a source of truth.
 
 The line to hold:
 
 | Changes when… | Examples | Rule |
 | --- | --- | --- |
 | the **data** changes | row counts, byte sizes, "402 of 686", extraction wall clock | Keep out. State the property, name the command |
-| the **code** changes | column counts, model counts, "ten foreign keys" | Fine to write. A reviewer sees them move in the same diff |
-| never — it is a pinned expectation | the eight dates in `assert_dim_date_calendar` | Required. That is what the test *is* |
+| the **code** changes | column counts, model counts, test counts, "ten foreign keys" | Keep out. Describe the shape, not the tally |
+| never — it is a pinned expectation | the dates in `assert_dim_date_calendar`, a library's default pool size | Required. That is what the thing *is* |
+| it is a target, not a tally | "dashboard queries under 5 seconds", "two builds must be identical" | Required. The number is the criterion |
 
-Write "no stock item has ever had more than one distinct price", not "444 rows over 227 items with
-zero price changes". The first survives a bigger dataset.
+The middle row used to say code-derived counts were fine, on the reasoning that a reviewer sees them move in the same diff. That reasoning was tested and failed: "ten foreign keys" sat in three documents and a model comment while the code carried eleven, through several commits and more than one review. A count nobody recomputes is a claim nobody checks.
+
+Write "no stock item has ever had more than one distinct price", not "444 rows over 227 items with zero price changes". The first survives a bigger dataset.
 
 Where a reader wants numbers, give the command:
 
 - `make shape` — every relation with its row and column count
-- `make verify` — the snapshot against the manifest's counts and checksums
-- `data/snapshots/manifest.json` — authoritative for source row counts, sizes and types
+- `make extract` — compares every table's landed row count against `COUNT(*)` at the source
+- `src/ingestion/tables.yml` — authoritative for which tables and columns raw must carry
 
-This rule covers documentation describing the *present*. A dated measurement is a different thing
-and should carry its numbers — a stale number there is history, not a false claim.
+This rule covers documentation describing the *present*. A dated measurement is a different thing and should carry its numbers — a stale number there is history, not a false claim.
 
 ### Testing
 
 - Generic tests go in the `schema.yml` beside the models they cover, one per layer directory.
-- Every dimension key carries `unique` and `not_null`; every foreign key on the fact carries
-  `relationships`. That is a rule, not a target — a new key without both is incomplete.
-- Singular tests go in `tests/`, named `assert_<what_must_be_true>.sql`. Three exist:
-  `assert_dim_date_calendar`, `assert_staging_matches_manifest`, `assert_mart_keeps_fact_grain`.
-- **A test is not trusted until it has been seen to fail.** Break the thing it guards, watch it go
-  red, put it back. A test that has only ever been green says nothing about whether it works, and
-  in this project one negative test passed for the wrong reason until it was provoked properly.
-- The mart's column list is a contract (`contract: enforced`) — a test in a different shape, which
-  fails the build rather than a test run.
+- Every dimension key carries `unique` and `not_null`; every foreign key on the fact carries `relationships`. That is a rule, not a target — a new key without both is incomplete.
+- Singular tests go in `tests/`, named `assert_<what_must_be_true>.sql`. For example `assert_dim_date_calendar` and `assert_obt_keeps_fact_grain`. A test that reads a model `--empty` leaves whole — `dim_date` is generated, not read from raw — reads it through `{{ ref('dim_date').render() }}`, or `make build_empty` hands it zero rows. A project generic test goes in `tests/generic/`, named for the property it asserts: `matches_source_rowcount`.
+- **A test is not trusted until it has been seen to fail.** Break the thing it guards, watch it go red, put it back. A test that has only ever been green says nothing about whether it works, and in this project one negative test passed for the wrong reason until it was provoked properly.
+- dbt unit tests go in `_<layer>__unit_tests.yml` beside the models they cover: fixed input rows, fixed expected rows, for logic where the output can be stated by hand. They run in `make build_empty`, so CI runs them.
+- The mart's column list is a contract (`contract: enforced`) — a test in a different shape, which fails the build rather than a test run.
+
+## Markdown in this repository
+
+**Prose is never hard-wrapped.** One paragraph is one line; one bullet is one line. Let the editor soft-wrap it.
+
+The reason is the diff. A hard-wrapped paragraph reflows when a word changes near its start, so `git diff` shows the whole block and a reviewer cannot see which sentence actually moved. Unwrapped, a changed sentence is a changed line.
+
+Line breaks are therefore structural, not visual. Break only at a real boundary:
+
+- between paragraphs, and between bullets
+- around a heading, a table, or a fenced code block
+- inside a fenced block, where the content's own line breaks are the content
+
+This applies to every `.md` in the repository — `README.md`, `REVIEW.md`, `docs/`, and the dbt project's own README. Tables keep one row per line, and code fences are left exactly as written.
+
+Nothing enforces this yet; it is a convention, not a gate. A `git diff` that lights up a whole paragraph for a one-word change is the symptom to watch for.

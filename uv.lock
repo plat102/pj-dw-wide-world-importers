@@ -2577,7 +2577,6 @@ dependencies = [
     { name = "duckdb" },
     { name = "pyarrow" },
     { name = "pymssql" },
-    { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "s3fs" },
 ]
@@ -2594,11 +2593,10 @@ dev = [
 requires-dist = [
     { name = "dbt-core", specifier = "==1.12.2" },
     { name = "dbt-duckdb" },
-    { name = "dlt", extras = ["sql-database"], specifier = ">=1.7.0" },
+    { name = "dlt", extras = ["sql-database"], specifier = ">=1.30" },
     { name = "duckdb" },
     { name = "pyarrow", specifier = ">=15" },
     { name = "pymssql", specifier = ">=2.3" },
-    { name = "python-dotenv", specifier = ">=1.0" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "s3fs", specifier = ">=2024.6" },
 ]
