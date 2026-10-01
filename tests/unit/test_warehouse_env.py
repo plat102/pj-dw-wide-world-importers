@@ -1,10 +1,13 @@
-"""Environment parsing in warehouse.py. Small functions, but every command depends on them."""
+"""Environment parsing in config.settings. Small functions, but every command depends on them."""
 
 from __future__ import annotations
 
+from urllib.parse import unquote, urlsplit
+
 import pytest
 
-from config.settings import catalog_dsn, data_path, endpoint_url, use_ssl
+from config.settings import catalog_dsn, catalog_url, data_path, endpoint_url, require, use_ssl
+from utils.exceptions import ToolingError
 
 
 @pytest.mark.parametrize("value", ["1", "true", "TRUE", "Yes", " true ", "1 "])
@@ -37,16 +40,57 @@ def test_catalog_dsn_defaults_match_the_compose_stack(monkeypatch: pytest.Monkey
     for name in ("CATALOG_DB", "CATALOG_HOST", "CATALOG_PORT"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CATALOG_USER", "ducklake")
-    monkeypatch.setenv("CATALOG_PASSWORD", "secret")
     dsn = catalog_dsn()
     assert "dbname=ducklake" in dsn
     assert "host=localhost" in dsn
     assert "port=55432" in dsn
 
 
-def test_lake_prefix_defaults_and_is_separate_from_bronze(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The lake and the snapshot share a bucket, so the prefixes must not collide."""
+def test_no_connection_string_carries_the_password(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Both strings end up in error messages, so neither may carry the password."""
+    monkeypatch.setenv("CATALOG_USER", "ducklake")
+    monkeypatch.setenv("CATALOG_PASSWORD", "it's a b")
+    assert "it's a b" not in catalog_dsn()
+    assert urlsplit(catalog_url()).password is None
+
+
+def test_catalog_url_quotes_a_reserved_character(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The user is still interpolated into a URL. Unquoted, a `/` or `@` in it truncates it."""
+    monkeypatch.setenv("CATALOG_USER", "wwi@lake/rw")
+    url = catalog_url()
+    assert "wwi%40lake%2Frw" in url
+    assert unquote(urlsplit(url).username or "") == "wwi@lake/rw"
+
+
+def test_data_path_is_the_lake_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    """dlt's DATA_PATH and dbt's data_path are this string. A missing slash makes two lakes."""
     monkeypatch.setenv("S3_BUCKET", "wwi")
     monkeypatch.delenv("LAKE_PREFIX", raising=False)
     assert data_path() == "s3://wwi/lake/"
-    assert not data_path().startswith("s3://wwi/bronze")
+
+
+def test_catalog_url_and_dsn_reach_one_database(monkeypatch: pytest.MonkeyPatch) -> None:
+    """dlt is handed a URL and duckdb a libpq string; they must name the same catalog."""
+    for name in ("CATALOG_DB", "CATALOG_HOST", "CATALOG_PORT"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("CATALOG_USER", "ducklake")
+    parts = urlsplit(catalog_url())
+    assert parts.hostname == "localhost"
+    assert str(parts.port) == "55432"
+    assert parts.path == "/ducklake"
+    assert parts.username == "ducklake"
+    assert "dbname=ducklake" in catalog_dsn()
+
+
+@pytest.mark.parametrize("value", ['"secret"', "'secret'"])
+def test_a_quoted_value_is_refused(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    """make keeps the quotes, compose strips them: the two halves would hold different secrets."""
+    monkeypatch.setenv("S3_SECRET_KEY", value)
+    with pytest.raises(ToolingError, match="quote marks"):
+        require("S3_SECRET_KEY")
+
+
+@pytest.mark.parametrize("value", ["it's", '"', 'a"b'])
+def test_a_quote_inside_a_value_is_kept(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    monkeypatch.setenv("S3_SECRET_KEY", value)
+    assert require("S3_SECRET_KEY") == value

@@ -4,3 +4,6 @@ dbt_packages/
 logs/
 
 .user.yml
+
+# A copy here shadows ~/.dbt/profiles.yml and drifts from profiles.sample.yml.
+profiles.yml

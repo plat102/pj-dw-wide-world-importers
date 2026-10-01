@@ -1,0 +1,66 @@
+# dbt unit tests: fixed input rows, fixed expected rows, no warehouse data. They run in
+# `make build_empty`, so CI checks the logic here as well as that the SQL compiles. Only the
+# columns an `expect` names are compared; every other input column is NULL.
+version: 2
+
+unit_tests:
+  - name: fct_date_keys_are_yyyymmdd_and_keep_a_null
+    description: >
+      Each date and timestamp becomes the yyyymmdd integer dim_date is keyed on. A timestamp
+      late in the day keeps its own date, and a line not yet picked keeps a NULL key rather than
+      one that points at a date nobody picked on.
+    model: fct_sales_order_line
+    given:
+      - input: ref('stg_sales__order_lines')
+        rows:
+          - {order_line_key: 1, order_key: 10, picking_completed_at: "2016-05-31 23:59:59"}
+          - {order_line_key: 2, order_key: 10, picking_completed_at: null}
+      - input: ref('stg_sales__orders')
+        rows:
+          - order_key: 10
+            customer_key: 5
+            order_date: "2016-05-31"
+            expected_delivery_date: "2016-06-01"
+            picking_completed_at: "2016-06-01 07:00:00"
+      - input: ref('stg_sales__customers')
+        rows:
+          - {customer_key: 5, bill_to_customer_key: 1}
+    expect:
+      rows:
+        - sales_order_line_key: 1
+          bill_to_customer_key: 1
+          order_date_key: 20160531
+          expected_delivery_date_key: 20160601
+          sales_order_picking_completed_date_key: 20160601
+          sales_order_line_picking_completed_date_key: 20160531
+        - sales_order_line_key: 2
+          bill_to_customer_key: 1
+          order_date_key: 20160531
+          expected_delivery_date_key: 20160601
+          sales_order_picking_completed_date_key: 20160601
+          sales_order_line_picking_completed_date_key: null
+
+  - name: dim_customer_address_has_no_stray_space
+    description: >
+      Two address lines join with one space. A missing second line leaves no trailing space, and
+      a customer with neither line gets NULL, not an empty string.
+    model: dim_customer
+    given:
+      - input: ref('stg_sales__customers')
+        rows:
+          - {customer_key: 1, delivery_address_line_1: "Shop 12", delivery_address_line_2: "Main St", postal_address_line_1: "PO Box 8", postal_address_line_2: null}
+          - {customer_key: 2, delivery_address_line_1: null, delivery_address_line_2: null, postal_address_line_1: null, postal_address_line_2: null}
+      - input: ref('stg_sales__customer_categories')
+        rows: []
+      - input: ref('stg_sales__buying_groups')
+        rows: []
+      - input: ref('stg_application__people')
+        rows: []
+      - input: ref('stg_application__delivery_methods')
+        rows: []
+      - input: ref('int_cities__joined')
+        rows: []
+    expect:
+      rows:
+        - {customer_key: 1, delivery_address: "Shop 12 Main St", postal_address: "PO Box 8"}
+        - {customer_key: 2, delivery_address: null, postal_address: null}

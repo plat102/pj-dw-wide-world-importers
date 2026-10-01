@@ -10,8 +10,7 @@ Document the dimensional model design - business requirements, star schema, and 
 
 Build a dimensional data warehouse to support analytics for Wide World Importers.
 
-**Current Implementation**: Sales Order analytics
-**Future Scope**: Purchase Orders, Inventory Management, Customer Intelligence
+**Current Implementation**: Sales Order analytics **Future Scope**: Purchase Orders, Inventory Management, Customer Intelligence
 
 ### Key Metrics
 
@@ -54,7 +53,7 @@ Build a dimensional data warehouse to support analytics for Wide World Importers
 
 **Fact Table:**
 
-- `fact_sales_order_line` - Transactional sales data at order line grain
+- `fct_sales_order_line` - Transactional sales data at order line grain
 
 **Dimension Tables:**
 
@@ -73,7 +72,7 @@ Build a dimensional data warehouse to support analytics for Wide World Importers
 
 > Detailed specifications for fact and dimension tables - grain, keys, attributes
 
-### Fact Table: `fact_sales_order_line`
+### Fact Table: `fct_sales_order_line`
 
 **Grain**: One row per order line item
 
@@ -88,17 +87,19 @@ Build a dimensional data warehouse to support analytics for Wide World Importers
 
 | Dimension                  | Grain                    | Type                 | Key Attributes                                                                                   | Notes                                                 |
 | -------------------------- | ------------------------ | -------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
-| **dim_customer**     | One row per customer     | Type 0 (static)      | Customer name, category, buying group, contact details, delivery/postal addresses, payment terms | -                                                     |
-| **dim_stock_item**   | One row per stock item   | Type 0 (static)      | Product name, supplier, color, chiller stock indicator                                           | -                                                     |
-| **dim_person**       | One row per person       | Type 0 (static)      | Full name, email, phone, employee/salesperson flags                                              | Role-playing dimension (salesperson, contact, picker) |
-| **dim_package_type** | One row per package type | Type 0 (static)      | Package type name                                                                                | -                                                     |
-| **dim_date**         | One row per calendar day | Static pre-populated | Date components (year, month, day), day of week, ISO week, month name                            | -                                                     |
+| **dim_customer**     | One row per customer     | Type 1 (overwrite)   | Customer name, category, buying group, contact details, delivery/postal addresses, payment terms | -                                                     |
+| **dim_stock_item**   | One row per stock item   | Type 1 (overwrite)   | Product name, supplier, color, chiller stock indicator                                           | -                                                     |
+| **dim_person**       | One row per person       | Type 1 (overwrite)   | Full name, email, phone, employee/salesperson flags                                              | Role-playing dimension (salesperson, contact, picker) |
+| **dim_package_type** | One row per package type | Type 1 (overwrite)   | Package type name                                                                                | -                                                     |
+| **dim_date**         | One row per calendar day | Type 0 (generated)   | Date components (year, month, day), day of week, ISO week, month name                            | -                                                     |
+
+Type 1 is reached by rebuild, not by `update`: the extraction replaces `raw` and dbt rebuilds the star, so no superseded value survives anywhere. Nothing here is Type 2 — no dimension carries a row effective date, a row expiration date or a current row indicator.
 
 ## Marts Layer
 
 > Pre-joined, denormalized datasets optimized for BI consumption.
 
-### `mart_sales_order_line`
+### `obt_sales_order_line`
 
 Fully denormalized fact with all dimension attributes joined, eliminating need for BI tool to perform joins. The column list is written out, not generated: a generated list lets an upstream column reach the published surface silently, and `contract: enforced` holds the list to what is declared.
 
@@ -109,22 +110,20 @@ Fully denormalized fact with all dimension attributes joined, eliminating need f
 *Note: This shows logical data transformation dependencies. For physical infrastructure flow, see technical_design.md*
 
 ```
-Source (SQL Server)          Staging (Views)              Intermediate      Analytics (Tables)
+Source (SQL Server)          Staging (Views)              Intermediate      Core (Tables)
 ──────────────────────       ──────────────────────       ─────────────     ──────────────────
-sales.Orders            ──>  stg_sales_order         ──┐
-sales.OrderLines        ──>  stg_sales_order_line    ──┼───────────────────> fact_sales_order_line
+sales.Orders            ──>  stg_sales__orders         ──┐
+sales.OrderLines        ──>  stg_sales__order_lines    ──┼───────────────────> fct_sales_order_line
                                                        │
-sales.Customers         ──>  stg_sales_customer      ──┴───────────────────> dim_customer
-application.Cities      ──>  stg_application_city    ──┐                      ▲
-application.StateProv…  ──>  stg_application_state…  ──┼──> int_city_flattened┘
-application.Countries   ──>  stg_application_country ──┘
-warehouse.StockItems    ──>  stg_warehouse_stock_item ────────────────────── > dim_stock_item
-application.People      ──>  stg_application_person   ────────────────────── > dim_person
-warehouse.PackageTypes  ──>  stg_warehouse_package_ty ────────────────────── > dim_package_type
+sales.Customers         ──>  stg_sales__customers      ──┴───────────────────> dim_customer
+application.Cities      ──>  stg_application__cities    ──┐                      ▲
+application.StateProv…  ──>  stg_application__state_provinces ──┼──> int_cities__joined┘
+application.Countries   ──>  stg_application__countries ──┘
+warehouse.StockItems    ──>  stg_warehouse__stock_items ────────────────────── > dim_stock_item
+application.People      ──>  stg_application__people   ────────────────────── > dim_person
+warehouse.PackageTypes  ──>  stg_warehouse__package_types ────────────────────── > dim_package_type
 (Generated)                                            ────────────────────── > dim_date
 ```
 
-`int_city_flattened` is the only intermediate model: it joins city, state/province and country so
-`dim_customer` can resolve an address without repeating a three-way join. It is reachable from
-`dim_customer` alone, which is why it is one model rather than a layer.
+`int_cities__joined` is the only intermediate model: it joins city, state/province and country so `dim_customer` can resolve an address without repeating a three-way join. It is reachable from `dim_customer` alone, which is why it is one model rather than a layer.
 
