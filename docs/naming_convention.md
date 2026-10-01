@@ -204,6 +204,6 @@ Line breaks are therefore structural, not visual. Break only at a real boundary:
 - around a heading, a table, or a fenced code block
 - inside a fenced block, where the content's own line breaks are the content
 
-This applies to every `.md` in the repository — `README.md`, `REVIEW.md`, `docs/`, and the dbt project's own README. Tables keep one row per line, and code fences are left exactly as written.
+This applies to every `.md` in the repository — `README.md`, `AGENTS.md`, `docs/`, the agent skills under `.claude/`, and the dbt project's own README. Tables keep one row per line, and code fences are left exactly as written.
 
-Nothing enforces this yet; it is a convention, not a gate. A `git diff` that lights up a whole paragraph for a one-word change is the symptom to watch for.
+`make check` enforces it: `tests/unit/test_agent_setup.py` fails when a paragraph, bullet or quote carries on onto a second line, and the Claude Code edit hook in `.claude/hooks/post_edit_check.py` runs the same check on every Markdown file an agent writes. Fences, tables, headings, HTML comments and front matter are left alone, and so is a generated page, which is fixed in its generator. A trailing backslash or two trailing spaces marks a deliberate line break. It is a heuristic: when it flags something that is not a wrap, add the pattern to `BLOCK` in the hook rather than turning the check off.
