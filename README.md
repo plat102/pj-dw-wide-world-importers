@@ -143,6 +143,7 @@ make down       # stop the stack, keeping data (clean_storage deletes it)
 | [Data Modeling](docs/data_modelling.md)         | Dimensional model                         |
 | [Data Catalog](docs/data_warehouse_catalog.md)  | Tables and columns                        |
 | [Naming Conventions](docs/naming_convention.md) | Standards, SQL style, Markdown formatting |
+| [AGENTS.md](AGENTS.md)                         | Instructions for coding agents: commands, rules, boundaries |
 
 ## Sample reports — a frozen exhibit
 
