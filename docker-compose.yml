@@ -8,14 +8,14 @@ services:
     image: chrislusf/seaweedfs:4.41
     # One process runs master, volume, filer and the S3 gateway. The identity file is rendered
     # here from the environment so no key is ever committed; without one the gateway answers 403.
+    # render-identities.sh adds a read-only identity when S3_READER_ACCESS_KEY is set.
     # `-s3` also starts an Iceberg REST catalog on 8181; the lake's catalog is Postgres, so it is off.
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         set -eu
-        sed -e "s|__ACCESS_KEY__|$${S3_ACCESS_KEY}|" \
-            -e "s|__SECRET_KEY__|$${S3_SECRET_KEY}|" \
-            /etc/seaweedfs/s3-identities.template.json > /tmp/s3-identities.json
+        sh /etc/seaweedfs/render-identities.sh \
+            < /etc/seaweedfs/s3-identities.template.json > /tmp/s3-identities.json
         exec weed server -dir=/data -s3 -s3.port=8333 \
           -s3.config=/tmp/s3-identities.json \
           -master.volumeSizeLimitMB=1024 -volume.max=10 \
@@ -24,6 +24,10 @@ services:
       # No defaults: an unset credential must stop the stack, not start one with a guessable value.
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY -- copy .env.example to .env}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY -- copy .env.example to .env}
+      # Optional. Unset, the store has the admin identity alone.
+      S3_READER_ACCESS_KEY: ${S3_READER_ACCESS_KEY:-}
+      S3_READER_SECRET_KEY: ${S3_READER_SECRET_KEY:-}
+      S3_BUCKET: ${S3_BUCKET:-wwi}
     ports:
       # The S3 API is the only port anything outside the container speaks to. The master and filer
       # ports stay internal; the healthcheck below reaches the master from inside.
@@ -33,6 +37,7 @@ services:
     volumes:
       - s3-data:/data
       - ./infrastructure/seaweedfs/s3-identities.template.json:/etc/seaweedfs/s3-identities.template.json:ro
+      - ./infrastructure/seaweedfs/render-identities.sh:/etc/seaweedfs/render-identities.sh:ro
     healthcheck:
       # 127.0.0.1, not localhost: weed binds IPv4 only and busybox wget tries ::1 first.
       # Coarse on purpose -- `make up` waits on a real write; see `wwi wait-storage`.

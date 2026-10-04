@@ -14,6 +14,8 @@ export $(foreach v,$(LAKE_ENV),$(if $(filter undefined,$(origin $(v))),,$(v)))
 # The source credential reaches `extract` and nothing else -- not even when it comes from the
 # shell rather than .env. See the target-specific export on `extract`.
 unexport MSSQL_CONNECTION_STRING
+# Same for the catalog reader's password: it reaches `catalog_reader` and nothing else.
+unexport CATALOG_READER_PASSWORD
 # libpq reads the catalog password from here -- for wwi, dlt and dbt alike -- so no connection
 # string carries it, and no error can echo it.
 export PGPASSWORD := $(CATALOG_PASSWORD)
@@ -28,7 +30,7 @@ DBT_PROJECT = --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
 # Read-only SELECT on the source is enough; `extract` never writes to it.
 SOURCE_DB := WideWorldImporters
 
-.PHONY: up down clean_storage install parse build extract compare shape catalog maintain raw_schema build_empty lint format typecheck test check
+.PHONY: up down clean_storage catalog_reader install parse build extract compare shape catalog maintain raw_schema build_empty lint format typecheck test check
 
 # --- storage layer ----------------------------------------------------------------------
 # Credentials come from .env; an unset one stops the stack rather than guessing a value.
@@ -44,6 +46,18 @@ down:
 # Deletes the lake and its catalog, raw included. Separate from `down`, which keeps them.
 clean_storage:
 	docker compose down -v
+
+# A catalog login that can only SELECT, for BI tools. The store's matching read-only identity comes
+# from S3_READER_ACCESS_KEY at `make up`. Re-runnable. `public` is DuckLake's metadata schema here
+# (settings.METADATA_SCHEMA).
+catalog_reader: export CATALOG_READER_PASSWORD := $(CATALOG_READER_PASSWORD)
+catalog_reader:
+	$(if $(and $(CATALOG_READER_USER),$(CATALOG_READER_PASSWORD)),,$(error set CATALOG_READER_USER and CATALOG_READER_PASSWORD in .env))
+	docker compose exec -T -e CATALOG_READER_PASSWORD catalog \
+		psql -q -U "$(CATALOG_USER)" -d "$(or $(CATALOG_DB),ducklake)" \
+		-v reader="$(CATALOG_READER_USER)" -v owner="$(CATALOG_USER)" -v metadata_schema=public \
+		< infrastructure/postgres/create_catalog_reader.sql
+	@echo "catalog reader $(CATALOG_READER_USER) can SELECT the lake's metadata"
 
 # --- checks -----------------------------------------------------------------------------
 # `check` is what CI runs and what to run before pushing. None of it needs Docker.

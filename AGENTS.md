@@ -15,7 +15,7 @@ make build_empty                          # every dbt model, data test and unit 
 uv run ruff format path/to/file.py       # format only the files you wrote; `make format` reformats the whole repo
 ```
 
-Need the stack (`make up`, Docker) and a filled `.env`: `make build`, `make shape`, `make compare`, `make catalog`, `make raw_schema`. Before reporting a change done, `make check` is green.
+Need the stack (`make up`, Docker) and a filled `.env`: `make build`, `make shape`, `make compare`, `make catalog`, `make raw_schema`, `make catalog_reader` (a SELECT-only catalog login; with `S3_READER_*` it is the read-only identity BI tools attach with). Before reporting a change done, `make check` is green.
 
 ## Where does X live?
 
@@ -46,7 +46,7 @@ Need the stack (`make up`, Docker) and a filled `.env`: `make build`, `make shap
 
 ## Landmines
 
-- **Load gate runs first** — inside `dbt build` a failing source test does not skip the models downstream, so `make build` runs `complete_dlt_load` on its own first (`Makefile:78`). Keep that order when touching `build`.
+- **Load gate runs first** — inside `dbt build` a failing source test does not skip the models downstream, so `make build` runs `complete_dlt_load` on its own first (`Makefile:92`). Keep that order when touching `build`.
 - **`dim_date` under `--empty`** — it is generated, not read from raw, so a test that needs its rows reads it through `{{ ref('dim_date').render() }}` (`wide_world_importers_dw/tests/assert_dim_date_calendar.sql:33`), or `build_empty` hands it zero rows.
 - **Mart columns are a contract** — `obt_sales_order_line` is `contract: enforced` (`wide_world_importers_dw/models/marts/sales/_sales__models.yml:13`). Changing its columns means changing that YAML in the same commit.
 - **`.env` values** — make reads `.env` itself (`Makefile:6`): a `#` truncates a value, a `$` is expanded, and quote marks stay part of it (`settings.require` refuses a quoted value).
@@ -57,7 +57,7 @@ Need the stack (`make up`, Docker) and a filled `.env`: `make build`, `make shap
 - Never read, print or edit `.env`; change `.env.example` and tell the user.
 - Ask before `make extract` (reads the source database), `make maintain` (deletes snapshot files), `make clean_storage` (deletes the lake), `make compare` (builds twice into the live lake) or `docker compose down`.
 - Never hand-edit generated files: `docs/data_warehouse_catalog.md` (`make catalog`), `src/ingestion/raw_schema.sql` (`make raw_schema`), `uv.lock` (`uv lock`).
-- Do not hand `MSSQL_CONNECTION_STRING` to any recipe other than `extract` (`Makefile:16`, `Makefile:84`).
+- Do not hand `MSSQL_CONNECTION_STRING` to any recipe other than `extract` (`Makefile:16`, `Makefile:98`).
 - Do not commit or push unless asked.
 
 ## More context
