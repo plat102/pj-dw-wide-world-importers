@@ -10,6 +10,7 @@ models:
       ordering customer, `order_date_` and `expected_delivery_date_` two role-plays of
       dim_date. Foreign keys are absent on purpose: the attribute is already here.
     config:
+      meta: {contains_pii: true}
       contract:
         enforced: true
     data_tests: [not_empty]
@@ -52,6 +53,7 @@ models:
         description: "Ordering customer — Buying group, or NULL when the customer is in none."
         data_type: varchar
       - name: customer_primary_contact_full_name
+        config: {meta: {pii: person}}
         description: "Ordering customer — {{ doc('person__full_name') }} Primary contact."
         data_type: varchar
       - name: customer_primary_contact_is_system_user
@@ -64,12 +66,15 @@ models:
         description: "Ordering customer — Whether the primary contact is a salesperson."
         data_type: boolean
       - name: customer_primary_contact_phone_number
+        config: {meta: {pii: person}}
         description: "Ordering customer — Primary contact's phone number."
         data_type: varchar
       - name: customer_primary_contact_email_address
+        config: {meta: {pii: person}}
         description: "Ordering customer — Primary contact's email address."
         data_type: varchar
       - name: customer_alternate_contact_full_name
+        config: {meta: {pii: person}}
         description: "Ordering customer — {{ doc('person__full_name') }} Alternate contact, or NULL."
         data_type: varchar
       - name: customer_delivery_method_name
@@ -109,33 +114,42 @@ models:
         description: "Ordering customer — Days the customer has to pay."
         data_type: bigint
       - name: customer_phone_number
+        config: {meta: {pii: none}}
         description: "Ordering customer — Customer's main phone number."
         data_type: varchar
       - name: customer_website_url
+        config: {meta: {pii: none}}
         description: "Ordering customer — Customer's website."
         data_type: varchar
       - name: customer_delivery_address
+        config: {meta: {pii: none}}
         description: "Ordering customer — Delivery street address, both source lines joined and trimmed."
         data_type: varchar
       - name: customer_delivery_postal_code
+        config: {meta: {pii: none}}
         description: "Ordering customer — Delivery postal code."
         data_type: varchar
       - name: customer_postal_address
+        config: {meta: {pii: none}}
         description: "Ordering customer — Postal street address, both source lines joined and trimmed."
         data_type: varchar
       - name: customer_postal_postal_code
+        config: {meta: {pii: none}}
         description: "Ordering customer — Postal code of the postal address."
         data_type: varchar
       - name: bill_to_customer_name
         description: "Bill-to customer — {{ doc('customer__name') }}"
         data_type: varchar
       - name: salesperson_person_full_name
+        config: {meta: {pii: person}}
         description: "Salesperson — {{ doc('person__full_name') }}"
         data_type: varchar
       - name: picked_by_person_person_full_name
+        config: {meta: {pii: person}}
         description: "Picker — {{ doc('person__full_name') }}"
         data_type: varchar
       - name: contact_person_person_full_name
+        config: {meta: {pii: person}}
         description: "Customer contact — {{ doc('person__full_name') }}"
         data_type: varchar
       - name: stock_item_name

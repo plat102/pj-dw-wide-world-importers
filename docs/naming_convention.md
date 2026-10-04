@@ -158,6 +158,17 @@ from high_value_customers
 - Set materialization in `dbt_project.yml` by folder
 - Override in individual models only when necessary
 
+### Personal data
+
+Every published column — in `core` and `marts`, the schemas a BI tool reads — whose name suggests identity or contact details declares `config: {meta: {pii: person}}` or `config: {meta: {pii: none}}`. A model with any `pii: person` column also declares `config: {meta: {contains_pii: true}}`, and only then. `make check` runs both rules through dbt-score (`make score`, rules in `wide_world_importers_dw/dbt_score_rules/pii.py`); an unclassified column fails it.
+
+| Class | Means | Examples |
+|---|---|---|
+| `person` | Identifies or contacts a natural person | a contact's or an employee's name, email, phone |
+| `none` | Looks like contact data but belongs to an organisation | a customer's switchboard number, website, delivery address — Wide World Importers' customers are businesses |
+
+The classification is metadata, not protection: nothing is masked yet, and the read-only catalog login can read every schema. It exists so the semantic layer, a catalog page or a masking step can find personal columns by metadata instead of by memory. Staging declares no columns, so the rule cannot see it; staging is not a published surface.
+
 ### Numbers in documentation and comments
 
 **Do not write a row count into a document, a model comment, or a YAML description.** It goes stale the moment the data span changes, in places nobody remembers to look, and competes with the warehouse as a source of truth.

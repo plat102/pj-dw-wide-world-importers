@@ -38,6 +38,7 @@ wwi = "cli.app:main"
 
 [dependency-groups]
 dev = [
+    "dbt-score>=0.18.0",
     "import-linter>=2.13",
     "mypy>=2.3.1",
     "pytest>=9.1.1",
@@ -79,6 +80,14 @@ layers = [
     "config",
     "utils",
 ]
+
+[tool.dbt-score]
+# Only this project's rules, and every one must pass: these are gates, not a score to improve.
+# The package sits in the dbt project; `make score` runs from the repository root, which
+# dbt-score puts on the path.
+rule_namespaces = ["wide_world_importers_dw.dbt_score_rules"]
+fail_any_item_under = 10.0
+fail_project_under = 10.0
 
 [tool.uv]
 # uv.lock is the source of truth. Regenerate with `uv lock`, install with `uv sync`.

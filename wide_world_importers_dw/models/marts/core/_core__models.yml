@@ -2,6 +2,8 @@ version: 2
 
 models:
   - name: dim_customer
+    config:
+      meta: {contains_pii: true}
     description: "One row per customer. Category, buying group, both contacts, delivery method and the delivery city's whole geography are flattened on, so a consumer never joins back for them."
     columns:
       - name: customer_key
@@ -24,6 +26,7 @@ models:
       - name: buying_group_name
         description: "Buying group name, or NULL when the customer is in none."
       - name: primary_contact_full_name
+        config: {meta: {pii: person}}
         description: "{{ doc('person__full_name') }} Primary contact."
       - name: primary_contact_is_system_user
         description: "Whether the primary contact has a login in the source system."
@@ -32,10 +35,13 @@ models:
       - name: primary_contact_is_salesperson
         description: "Whether the primary contact is a salesperson."
       - name: primary_contact_phone_number
+        config: {meta: {pii: person}}
         description: "Primary contact's phone number."
       - name: primary_contact_email_address
+        config: {meta: {pii: person}}
         description: "Primary contact's email address."
       - name: alternate_contact_full_name
+        config: {meta: {pii: person}}
         description: "{{ doc('person__full_name') }} Alternate contact, or NULL."
       - name: delivery_method_name
         description: "How goods reach this customer, flattened from `Application.DeliveryMethods`."
@@ -66,27 +72,37 @@ models:
       - name: payment_term_days
         description: "Days the customer has to pay."
       - name: phone_number
+        config: {meta: {pii: none}}
         description: "Customer's main phone number."
       - name: website_url
+        config: {meta: {pii: none}}
         description: "Customer's website."
       - name: delivery_address
+        config: {meta: {pii: none}}
         description: "Delivery street address, the source's two lines joined and trimmed. NULL when both lines are empty."
       - name: delivery_postal_code
+        config: {meta: {pii: none}}
         description: "Delivery postal code."
       - name: postal_address
+        config: {meta: {pii: none}}
         description: "Postal street address, the source's two lines joined and trimmed. NULL when both lines are empty."
       - name: postal_postal_code
+        config: {meta: {pii: none}}
         description: "Postal code of the postal address."
 
   - name: dim_person
+    config:
+      meta: {contains_pii: true}
     description: "One row per person: system users, employees and salespeople alike. Role-played by the fact as salesperson, picker and contact."
     columns:
       - name: person_key
         description: "Natural key from `Application.People`. The grain."
         data_tests: [unique, not_null]
       - name: person_full_name
+        config: {meta: {pii: person}}
         description: "{{ doc('person__full_name') }}"
       - name: person_preferred_name
+        config: {meta: {pii: person}}
         description: "What the person is called day to day."
       - name: is_system_user
         description: "Whether the person has a login in the source system."
@@ -95,8 +111,10 @@ models:
       - name: is_salesperson
         description: "Whether the person is a salesperson."
       - name: phone_number
+        config: {meta: {pii: person}}
         description: "The person's phone number."
       - name: email_address
+        config: {meta: {pii: person}}
         description: "The person's email address."
 
   - name: dim_stock_item

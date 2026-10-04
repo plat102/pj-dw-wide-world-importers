@@ -8,7 +8,7 @@ Run everything from the repository root; `uv run` needs no activated venv.
 
 ```bash
 make install                              # uv sync --frozen
-make check                                # THE gate: ruff, import contracts, mypy, pytest, build_empty. No Docker, no .env. CI runs exactly this
+make check                                # THE gate: ruff, import contracts, mypy, pytest, build_empty, score. No Docker, no .env. CI runs exactly this
 uv run pytest tests/unit/test_raw_schema.py -k name   # one Python test
 make parse                                # dbt Jinja and YAML errors only, in seconds
 make build_empty                          # every dbt model, data test and unit test on an empty raw schema
@@ -38,6 +38,7 @@ Need the stack (`make up`, Docker) and a filled `.env`: `make build`, `make shap
 - Read an environment variable only through `src/config/settings.py`, and add any new one to `LAKE_ENV` in `Makefile:11` — make hands recipes only the names listed there. `tests/unit/test_make_env.py` fails when the two drift.
 - A new source table changes `tables.yml`, `__sources.yml`, `raw_schema.sql` and the model that reads it in one commit — raw carries exactly what a model reads. `tests/unit/test_source_contract.py` and `tests/unit/test_raw_schema.py` enforce it, so `make check` stays red from the `tables.yml` edit until `make raw_schema` has run after an extract. Workflow: `.claude/skills/add-source-table/SKILL.md`.
 - dbt naming, folders, SQL style (lowercase, leading commas, one column per line) and required tests: [docs/naming_convention.md](docs/naming_convention.md). New model workflow: `.claude/skills/add-dbt-model/SKILL.md`.
+- A published column (core, marts) whose name suggests identity or contact data declares `meta.pii: person|none`, and a model with a `person` column declares `meta.contains_pii: true` — `make score` (part of `make check`) fails otherwise. Rules: [docs/naming_convention.md](docs/naming_convention.md), "Personal data".
 - Give every `ref` in a `from` or `join` an alias and qualify columns with it — under `--empty` dbt renders a ref as an unnamed subquery, so `make build_empty` fails otherwise.
 - A test is trusted only after it has been seen to fail: break what it guards, watch it go red, restore.
 - Repository text is English only. Markdown prose is never hard-wrapped: one paragraph or bullet per line.
@@ -48,7 +49,7 @@ Need the stack (`make up`, Docker) and a filled `.env`: `make build`, `make shap
 
 - **Load gate runs first** — inside `dbt build` a failing source test does not skip the models downstream, so `make build` runs `complete_dlt_load` on its own first (`Makefile:92`). Keep that order when touching `build`.
 - **`dim_date` under `--empty`** — it is generated, not read from raw, so a test that needs its rows reads it through `{{ ref('dim_date').render() }}` (`wide_world_importers_dw/tests/assert_dim_date_calendar.sql:33`), or `build_empty` hands it zero rows.
-- **Mart columns are a contract** — `obt_sales_order_line` is `contract: enforced` (`wide_world_importers_dw/models/marts/sales/_sales__models.yml:13`). Changing its columns means changing that YAML in the same commit.
+- **Mart columns are a contract** — `obt_sales_order_line` is `contract: enforced` (`wide_world_importers_dw/models/marts/sales/_sales__models.yml:14`). Changing its columns means changing that YAML in the same commit.
 - **`.env` values** — make reads `.env` itself (`Makefile:6`): a `#` truncates a value, a `$` is expanded, and quote marks stay part of it (`settings.require` refuses a quoted value).
 - **Integration tests are deselected** — plain `pytest` skips `-m integration`; `make compare` runs them and builds twice against the live lake.
 

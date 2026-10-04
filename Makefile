@@ -30,7 +30,7 @@ DBT_PROJECT = --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
 # Read-only SELECT on the source is enough; `extract` never writes to it.
 SOURCE_DB := WideWorldImporters
 
-.PHONY: up down clean_storage catalog_reader install parse build extract compare shape catalog maintain raw_schema build_empty lint format typecheck test check
+.PHONY: up down clean_storage catalog_reader install parse build extract compare shape catalog maintain raw_schema build_empty score lint format typecheck test check
 
 # --- storage layer ----------------------------------------------------------------------
 # Credentials come from .env; an unset one stops the stack rather than guessing a value.
@@ -62,7 +62,7 @@ catalog_reader:
 # --- checks -----------------------------------------------------------------------------
 # `check` is what CI runs and what to run before pushing. None of it needs Docker.
 
-check: lint typecheck test build_empty
+check: lint typecheck test build_empty score
 
 lint:
 	uv run ruff check .
@@ -120,6 +120,12 @@ build_empty:
 	uv run wwi empty-lake
 	$(DBT) build $(DBT_PROJECT) --target empty --empty \
 		--exclude "test_name:complete_dlt_load test_name:not_empty"
+
+# Governance rules on the manifest: personal data classified where it is published. Rules live in
+# $(DBT_DIR)/dbt_score_rules/. Reads the manifest the last dbt command wrote, which in `check` is
+# build_empty's, so it needs no stack and no .env.
+score:
+	uv run dbt-score lint --manifest $(DBT_DIR)/target/manifest.json
 
 # Regenerates src/ingestion/raw_schema.sql from the loaded lake. Run it after changing
 # tables.yml and extracting; the diff is the change to the raw schema, reviewed like code.
