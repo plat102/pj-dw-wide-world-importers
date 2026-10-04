@@ -30,7 +30,7 @@ DBT_PROJECT = --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
 # Read-only SELECT on the source is enough; `extract` never writes to it.
 SOURCE_DB := WideWorldImporters
 
-.PHONY: up down clean_storage catalog_reader install parse build extract compare shape catalog maintain raw_schema build_empty score lint format typecheck test check
+.PHONY: up down clean_storage catalog_reader install parse build extract compare shape catalog maintain raw_schema build_empty score lineage lint format typecheck test check
 
 # --- storage layer ----------------------------------------------------------------------
 # Credentials come from .env; an unset one stops the stack rather than guessing a value.
@@ -126,6 +126,17 @@ build_empty:
 # build_empty's, so it needs no stack and no .env.
 score:
 	uv run dbt-score lint --manifest $(DBT_DIR)/target/manifest.json
+
+# Column-level lineage as a static page, from dbt's manifest and catalog: which raw column feeds
+# which published one. Built on the empty lake, so no stack: lineage comes from the SQL, and the
+# empty lake has the real column types. Output stays in target/, never committed. The page bundles
+# an analytics library; --disable-telemetry and DO_NOT_TRACK keep it from loading.
+lineage: build_empty
+	$(DBT) docs generate $(DBT_PROJECT) --target empty
+	DO_NOT_TRACK=1 uv run colibri generate --disable-telemetry \
+		--manifest $(DBT_DIR)/target/manifest.json --catalog $(DBT_DIR)/target/catalog.json \
+		--output-dir $(DBT_DIR)/target/lineage
+	@echo "open $(DBT_DIR)/target/lineage/index.html"
 
 # Regenerates src/ingestion/raw_schema.sql from the loaded lake. Run it after changing
 # tables.yml and extracting; the diff is the change to the raw schema, reviewed like code.

@@ -12,6 +12,7 @@ make check                                # THE gate: ruff, import contracts, my
 uv run pytest tests/unit/test_raw_schema.py -k name   # one Python test
 make parse                                # dbt Jinja and YAML errors only, in seconds
 make build_empty                          # every dbt model, data test and unit test on an empty raw schema
+make lineage                              # column-level lineage page from manifest + catalog, no stack
 uv run ruff format path/to/file.py       # format only the files you wrote; `make format` reformats the whole repo
 ```
 

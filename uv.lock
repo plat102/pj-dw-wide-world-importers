@@ -471,6 +471,19 @@ wheels = [
 ]
 
 [[package]]
+name = "dbt-colibri"
+version = "0.3.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "sqlglot", extra = ["c"] },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/da/44/81e8f4bf81879696e8431968fa60846979bb1e1884c9fb6a2c867adca724/dbt_colibri-0.3.6.tar.gz", hash = "sha256:ec590a45e99fc31def30a3b349d59d1aeaeb051df0d2ab6379800f33d943565b", size = 1251743, upload-time = "2026-06-03T18:13:46.635Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/9b/26e798371463edc9b0a078d66492b49e012de1ad4d1602a91c58b7b6bf8a/dbt_colibri-0.3.6-py3-none-any.whl", hash = "sha256:3f4c664f806a422b56d50293660b64ea4f86e093399fbf982ba76041ab285841", size = 1226178, upload-time = "2026-06-03T18:13:45.316Z" },
+]
+
+[[package]]
 name = "dbt-common"
 version = "1.39.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2494,6 +2507,34 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/f3/bc/2a07cef49046e6cf5d1a8b1de553aaef8491b4170dbfe254c8687c764408/sqlglot-30.17.0-py3-none-any.whl", hash = "sha256:84435ac283a60173da31b5fd7d11a725037a1c3fd6ed1e21fb065de74ddb579f", size = 741795, upload-time = "2026-08-12T19:36:48.699Z" },
 ]
 
+[package.optional-dependencies]
+c = [
+    { name = "sqlglotc" },
+]
+
+[[package]]
+name = "sqlglotc"
+version = "30.17.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "sqlglot" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f0/57/994126404551c5b40aa5f93d2c60b56fb191271a4cec445f7007f68070ab/sqlglotc-30.17.0.tar.gz", hash = "sha256:8f83229edbeebb5c02602257a59b596d0c26e63e9827c5dfe9976681e2fb51a7", size = 518037, upload-time = "2026-08-12T19:35:47.487Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ae/5e/23816877b67e707bb56d2537c9c0972fdd876928e9f8ee0685fc451486c0/sqlglotc-30.17.0-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:cc37a0d9b78e73e187a1caee7d01d966107a0fef77d35294acb4ae69f400342c", size = 32965395, upload-time = "2026-08-12T19:35:17.507Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/85/48cc91739c86fb41239ded78c675b7f72ead286b3a84a6ccdec7dff4b7d4/sqlglotc-30.17.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:5d02c86e516509ef971fe0d290140818f9ecd471a2d86b43de573f5c778f467b", size = 26396103, upload-time = "2026-08-12T19:35:20.102Z" },
+    { url = "https://files.pythonhosted.org/packages/1a/fc/55f5c8d92d516da373a0dcbadb103759c385ef17d1f4ec409228c443b27e/sqlglotc-30.17.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:24c0df324d3b8cb1ab65b4139b52dc4de2291ba0e3ce4086ef7fcd0b96555ba3", size = 27686053, upload-time = "2026-08-12T19:35:22.654Z" },
+    { url = "https://files.pythonhosted.org/packages/35/72/70da36523e61d2ac9854d502221958b4e4caf737fb22fe57e92e2b8f60d5/sqlglotc-30.17.0-cp312-cp312-win_amd64.whl", hash = "sha256:98386f93556e1c3075f58aab85be6f919b5af3ade4cc0609996f7fb68cb85bab", size = 11288238, upload-time = "2026-08-12T19:35:25.054Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/7b/e1a76eccad0fc585e0ec219eddb4d8411014eff2c0b4826d86c8ca348fb2/sqlglotc-30.17.0-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:486bb9652a11fd8d97005dbbd37aebe33a93fd74903c21c88f25b2e4cdc8d769", size = 32493923, upload-time = "2026-08-12T19:35:27.504Z" },
+    { url = "https://files.pythonhosted.org/packages/36/d8/b16152da0feff92eec30564dfaf25ba2d713d73d2a749e702b4363c7dcb3/sqlglotc-30.17.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:1c34c1c99121dd510553a1cdaa3ea1c597fafc58a60d794a81bdb09a1d45eef2", size = 25971903, upload-time = "2026-08-12T19:35:30.048Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/ae/10e451d34dc0d62c1c334c5a50a70ab1dcab9fdddd6c6db7aaab214e8362/sqlglotc-30.17.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c397302b4739e134e0062d48809dbe841a85b704bf5d0291336f057d74784a35", size = 27270385, upload-time = "2026-08-12T19:35:32.713Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/90/5843d6da4de08aea9c264f111f8df7783c414300371e4a38c604c467d382/sqlglotc-30.17.0-cp313-cp313-win_amd64.whl", hash = "sha256:a5a5cb708a9d96e08b5fa6d31a3817d94d615d7b536ade2cb1e88b6f1ec10917", size = 11288453, upload-time = "2026-08-12T19:35:34.819Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/14/40e655b38b369533bb19e9ca0de274d3f3d0a410de396cadcd34e2d897a6/sqlglotc-30.17.0-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:a79ca1259d89194b1ae3d50509aebb2727e74de0190dc57568917d27b2f70baf", size = 32419054, upload-time = "2026-08-12T19:35:37.351Z" },
+    { url = "https://files.pythonhosted.org/packages/57/91/f6000ee61f31a9614e7bdee365ffb9b9faf8483f23c12c4fb48f184fd982/sqlglotc-30.17.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:86b84c58b563d9762724a503398604c25553a5e637501c48dc27cf9fef466332", size = 25963607, upload-time = "2026-08-12T19:35:40.584Z" },
+    { url = "https://files.pythonhosted.org/packages/e2/7e/82107bbe1b86fec5d71074ab210165d6a725c1b9f8479162c5340826209a/sqlglotc-30.17.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:599ec9e4c7450175df0c4f844d95e7732c4890077a997352f62af25203633970", size = 27168501, upload-time = "2026-08-12T19:35:43.519Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/24/4c59aee76544d4c6f0a6af2871bc0e9848a899cb310149f13d81d1dd8694/sqlglotc-30.17.0-cp314-cp314-win_amd64.whl", hash = "sha256:3396b2e596049cb185b9980b6b59453ff7b5d400b2c6c335cb854cf93458b0a8", size = 11429982, upload-time = "2026-08-12T19:35:45.737Z" },
+]
+
 [[package]]
 name = "sqlparse"
 version = "0.5.5"
@@ -2595,6 +2636,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "dbt-colibri" },
     { name = "dbt-score" },
     { name = "import-linter" },
     { name = "mypy" },
@@ -2616,6 +2658,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "dbt-colibri", specifier = ">=0.3.6" },
     { name = "dbt-score", specifier = ">=0.18.0" },
     { name = "import-linter", specifier = ">=2.13" },
     { name = "mypy", specifier = ">=2.3.1" },

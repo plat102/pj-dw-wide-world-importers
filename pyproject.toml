@@ -38,6 +38,7 @@ wwi = "cli.app:main"
 
 [dependency-groups]
 dev = [
+    "dbt-colibri>=0.3.6",
     "dbt-score>=0.18.0",
     "import-linter>=2.13",
     "mypy>=2.3.1",

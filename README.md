@@ -110,6 +110,7 @@ make check      # lint, import boundaries, types, unit tests, build_empty
 make build_empty # every dbt model and test on an empty raw schema, no stack
 make build      # check raw holds one complete load, then dbt build
 make shape      # every relation with its row and column count
+make lineage    # column-level lineage as a static page in the dbt target/, no stack
 make compare    # build twice, diff every table
 make extract    # reload raw from SQL Server
 make maintain   # expire snapshots older than KEEP_DAYS (7), delete their files
