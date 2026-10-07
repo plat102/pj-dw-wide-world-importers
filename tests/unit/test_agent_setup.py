@@ -176,6 +176,9 @@ def test_the_wrap_check_tells_a_wrapped_paragraph_from_structure() -> None:
     assert wrapped_lines("# Title\n\nOne sentence\ncarried on.\n") == [4]
     structure = "---\nname: x\ndescription: y\n---\n\nOne line.\n\n- a\n- b\n\n| a |\n| b |\n"
     assert wrapped_lines(structure + "```\ncode\nmore\n```\n") == []
+    tag = '{% bar_chart\n    data="sales"\n    y="MEASURE(x)"\n/%}\n\nOne line.\n'
+    assert wrapped_lines(tag) == []
+    assert wrapped_lines(tag + "carried on.\n") == [7]
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="needs git to list tracked files")

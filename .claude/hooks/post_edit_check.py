@@ -27,6 +27,9 @@ ITEM = re.compile(r"^([-*+]|\d+[.)])\s+\S")
 # docs file. Nothing that follows one continues it.
 BLOCK = re.compile(r"^(#|\||[-*_=]{3,}\s*$|<|!\[|\[!\[|\{[%#{]|\[\^?[^\]]*\]:)")
 INDENTED_CODE = re.compile(r"^( {4}|\t)")
+# A Markdoc or Jinja tag left open on its line, as a report page writes a component: its attributes
+# follow one per line until the line that closes it with `%}`.
+OPEN_TAG = re.compile(r"^\{%(?!.*%\})")
 
 
 def _front_matter_end(lines: list[str]) -> int:
@@ -43,7 +46,7 @@ def wrapped_lines(text: str) -> list[int]:
     lines = text.splitlines()
     found: list[int] = []
     fence = ""  # the marker that opened the fence we are in, or "" outside one
-    in_comment = in_code = False
+    in_comment = in_code = in_tag = False
     # Whether the line above holds paragraph or list-item text that a text line would continue.
     carries_text = False
     start = _front_matter_end(lines)
@@ -57,6 +60,10 @@ def wrapped_lines(text: str) -> list[int]:
             continue
         if opener:
             fence = opener.group(1)
+            carries_text = False
+            continue
+        if in_tag or OPEN_TAG.match(line.lstrip()):
+            in_tag = "%}" not in line
             carries_text = False
             continue
         if in_comment or line.lstrip().startswith("<!--"):
