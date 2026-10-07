@@ -58,6 +58,8 @@ SCD Type 2 was once listed as a deliverable and is **not built** — see [Change
 | The `raw` schema of the lake, one table per declared source table | `make extract` |
 | Static gates on every pull request: lint, import contracts, types, unit tests, dbt compile | `.github/workflows/build.yml` |
 | Enforced architectural boundaries, as import contracts | `make lint` |
+| One semantic layer that every report queries | `semantic/model/`, `make bi_check` |
+| Reports as code, served from the repository | `reports/`, `make bi_up` |
 | Looker Studio dashboards | against the frozen BigQuery build |
 
 ### Not built

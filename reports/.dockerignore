@@ -1,0 +1,5 @@
+Dockerfile
+.dockerignore
+.evidence/
+# Never baked into the image: a local secrets file here is git-ignored, not build-ignored.
+.env*

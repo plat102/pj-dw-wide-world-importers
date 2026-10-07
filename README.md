@@ -22,6 +22,10 @@ make extract
 # 4. Build the models and run every test, then print every relation with its shape.
 make build
 make shape
+
+# 5. The semantic layer and the reports, read-only. Fill in S3_READER_*, CATALOG_READER_*,
+#    CUBEJS_* and EVIDENCE_BASIC_*, then `make up` again to load the reader identity.
+make up catalog_reader bi_up   # reports at http://127.0.0.1:3000
 ```
 
 The extraction needs a read-only login on the source; `infrastructure/mssql/prepare_extraction_login.sql` creates one. It grants `db_datareader` and nothing beyond it — no writes, no schema changes, no CDC.
@@ -35,6 +39,8 @@ The extraction needs a read-only login on the source; `infrastructure/mssql/prep
 | Storage        | S3-compatible object store           | the lake's data files, under `lake/`                   |
 | Warehouse      | DuckLake (DuckDB + Postgres catalog) | raw → staging → core → marts                        |
 | Transformation | dbt Core                             | dimensional models, enforced contract on the mart          |
+| Semantic layer | Cube                                 | every metric defined once, over the star, read in place    |
+| Reports        | Evidence Core                        | pages in git that name Cube's measures                     |
 
 **Problem:** analytical queries slow the transactional system; reports need IT. **Solution:** a dimensional warehouse reproducible from one command against the source.
 
@@ -67,12 +73,16 @@ flowchart LR
     end
 
     subgraph bi["📊 Visualization"]
+        CUBE[Cube<br/>semantic layer]
+        EV[Evidence<br/>reports]
         LOOKER[Looker Studio<br/>frozen exhibit]
     end
 
     OLTP --> DLT
     DLT -->|writes into the lake| RAW
     RAW -->|dbt| STG
+    CORE -->|read-only| CUBE
+    CUBE -->|SQL API| EV
     MART -.-> LOOKER
 
     style OLTP fill:#E8E8E8,stroke:#666,stroke-width:2px,color:#333
@@ -81,6 +91,8 @@ flowchart LR
     style STG fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
     style CORE fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
     style MART fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#333
+    style CUBE fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:#333
+    style EV fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:#333
     style LOOKER fill:#EEEEEE,stroke:#9E9E9E,stroke-width:2px,stroke-dasharray: 5 5,color:#333
 ```
 
@@ -115,6 +127,9 @@ make compare    # build twice, diff every table
 make extract    # reload raw from SQL Server
 make maintain   # expire snapshots older than KEEP_DAYS (7), delete their files
 make raw_schema # regenerate src/ingestion/raw_schema.sql from the loaded lake
+make bi_up      # Cube and the reports on top of the stack
+make bi_check   # reports reach Cube, and Cube's numbers match the star
+make reports_dev # live-reloading pages against the running Cube
 make down       # stop the stack, keeping data (clean_storage deletes it)
 ```
 
@@ -123,6 +138,8 @@ make down       # stop the stack, keeping data (clean_storage deletes it)
 ```
 ├── docs/                    # Project documentation
 ├── infrastructure/          # Container config, source login SQL
+├── reports/                 # Evidence pages; they name measures, never define them
+├── semantic/                # Cube config and model: every metric formula and its description
 ├── src/
 │   ├── cli/                 # The `wwi` command
 │   ├── config/              # Settings; the only place an env var is named
@@ -132,7 +149,7 @@ make down       # stop the stack, keeping data (clean_storage deletes it)
 │   └── utils/
 ├── tests/                   # unit/ needs nothing; integration/ needs the stack
 ├── wide_world_importers_dw/ # dbt project
-└── docker-compose.yml       # Object store + DuckLake catalog
+└── docker-compose.yml       # Object store + DuckLake catalog; Cube + reports (profile bi)
 ```
 
 ## Documentation

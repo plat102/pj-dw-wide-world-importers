@@ -1,0 +1,45 @@
+# Conformed dimensions of the star. Each cube is one dimension table; the fact names the join.
+# Private like the fact: the view `sales` is the only way in.
+cubes:
+  - name: order_date
+    sql_table: lake.core.dim_date
+    public: false
+    description: Calendar, joined on the order date key.
+    dimensions:
+      - name: date_key
+        sql: "{CUBE}.date_key"
+        type: number
+        primary_key: true
+      - name: full_date
+        description: Date the order was placed.
+        sql: "{CUBE}.full_date"
+        type: time
+
+  - name: customers
+    sql_table: lake.core.dim_customer
+    public: false
+    description: Customer the order was placed by.
+    dimensions:
+      - name: customer_key
+        sql: "{CUBE}.customer_key"
+        type: number
+        primary_key: true
+      - name: customer_category_name
+        description: Customer category.
+        sql: "{CUBE}.customer_category_name"
+        type: string
+
+  - name: stock_items
+    sql_table: lake.core.dim_stock_item
+    public: false
+    description: Item sold.
+    dimensions:
+      - name: stock_item_key
+        sql: "{CUBE}.stock_item_key"
+        type: number
+        primary_key: true
+      - name: brand
+        # A report filter drops NULL from its choices, so unbranded stock gets a value it can select.
+        description: Brand, or (none) for unbranded stock.
+        sql: "COALESCE({CUBE}.brand, '(none)')"
+        type: string

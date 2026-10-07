@@ -1,0 +1,14 @@
+# Cube's SQL API, which speaks the Postgres wire protocol. Committed: it holds environment
+# references and no value. The reports reach the semantic layer and nothing else; never point
+# this at the lake or its catalog.
+type: cube
+host: ${CUBE_HOST}
+# A literal: `${VAR}` here fails with "expected number, received string". docker-compose.yml
+# publishes Cube's SQL API on the same port inside and outside the container.
+port: 15442
+user: ${CUBEJS_SQL_USER}
+password: ${CUBEJS_SQL_PASSWORD}
+database: cube
+# Cube runs beside the reports on the local network, without TLS.
+sslmode: disable
+schema: public

@@ -16,7 +16,7 @@ make lineage                              # column-level lineage page from manif
 uv run ruff format path/to/file.py       # format only the files you wrote; `make format` reformats the whole repo
 ```
 
-Need the stack (`make up`, Docker) and a filled `.env`: `make build`, `make shape`, `make compare`, `make catalog`, `make raw_schema`, `make catalog_reader` (a SELECT-only catalog login; with `S3_READER_*` it is the read-only identity BI tools attach with). Before reporting a change done, `make check` is green.
+Need the stack (`make up`, Docker) and a filled `.env`: `make build`, `make shape`, `make compare`, `make catalog`, `make raw_schema`, `make catalog_reader` (a SELECT-only catalog login; with `S3_READER_*` it is the read-only identity BI tools attach with), `make bi_up` (Cube and the reports), `make bi_check` (the reports reach Cube, and Cube matches the star), `make reports_dev`. Before reporting a change done, `make check` is green.
 
 ## Where does X live?
 
@@ -31,6 +31,8 @@ Need the stack (`make up`, Docker) and a filled `.env`: `make build`, `make shap
 | The dbt profile | `profiles.yml` at the root; `make` passes `--profiles-dir` |
 | Import contracts, ruff, mypy, pytest config | `pyproject.toml` |
 | CI | `.github/workflows/build.yml` |
+| Metric formulas and joins (Cube) | `semantic/model/`; Cube's config in `semantic/cube.js` |
+| Report pages (Evidence) | `reports/pages/`; the connection to Cube in `reports/connection.yaml` |
 
 ## Conventions
 
@@ -41,6 +43,7 @@ Need the stack (`make up`, Docker) and a filled `.env`: `make build`, `make shap
 - dbt naming, folders, SQL style (lowercase, leading commas, one column per line) and required tests: [docs/naming_convention.md](docs/naming_convention.md). New model workflow: `.claude/skills/add-dbt-model/SKILL.md`.
 - A published column (core, marts) whose name suggests identity or contact data declares `meta.pii: person|none`, and a model with a `person` column declares `meta.contains_pii: true` — `make score` (part of `make check`) fails otherwise. Rules: [docs/naming_convention.md](docs/naming_convention.md), "Personal data".
 - Give every `ref` in a `from` or `join` an alias and qualify columns with it — under `--empty` dbt renders a ref as an unnamed subquery, so `make build_empty` fails otherwise.
+- A metric formula lives in `semantic/model/` and nowhere else: a cube reads `lake.core.*` and is `public: false`, and a page holds no SQL and names `MEASURE(x)`. `tests/unit/test_reports.py` and `tests/unit/test_semantic_model.py` enforce it.
 - A test is trusted only after it has been seen to fail: break what it guards, watch it go red, restore.
 - Repository text is English only. Markdown prose is never hard-wrapped: one paragraph or bullet per line.
 - No row counts, model counts, test counts or sizes in docs, comments or YAML descriptions — they go stale. Name the command that measures it (`make shape`).

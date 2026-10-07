@@ -30,7 +30,7 @@ DBT_PROJECT = --project-dir ./$(DBT_DIR) $(PROFILES_ARG)
 # Read-only SELECT on the source is enough; `extract` never writes to it.
 SOURCE_DB := WideWorldImporters
 
-.PHONY: up down clean_storage catalog_reader install parse build extract compare shape catalog maintain raw_schema build_empty score lineage lint format typecheck test check
+.PHONY: up down clean_storage catalog_reader install parse build extract compare shape catalog maintain raw_schema build_empty score lineage lint format typecheck test check bi_up bi_check reports_dev
 
 # --- storage layer ----------------------------------------------------------------------
 # Credentials come from .env; an unset one stops the stack rather than guessing a value.
@@ -41,11 +41,11 @@ up:
 	uv run wwi wait-storage
 
 down:
-	docker compose down
+	docker compose --profile bi down
 
 # Deletes the lake and its catalog, raw included. Separate from `down`, which keeps them.
 clean_storage:
-	docker compose down -v
+	docker compose --profile bi down -v
 
 # A catalog login that can only SELECT, for BI tools. The store's matching read-only identity comes
 # from S3_READER_ACCESS_KEY at `make up`. Re-runnable. `public` is DuckLake's metadata schema here
@@ -158,3 +158,34 @@ maintain:
 # turns "lake unreachable" or "raw empty" into a failure: here, a skip would read as a pass.
 compare:
 	uv run pytest -m integration --require-lake tests/integration/test_build_determinism.py
+
+# --- semantic layer and reports -------------------------------------------------------------
+# Cube holds every metric definition (semantic/); Evidence renders the pages (reports/) and reads
+# Cube's SQL API, never the lake. Both read with the read-only identity, so the chain from a clone
+# is `make up catalog_reader bi_up`, after a build has filled the lake.
+
+# What the two services need. Cube's own secrets and the reports' login reach `bi_up` only; the
+# other targets run docker compose, which reads .env itself.
+BI_ENV := S3_READER_ACCESS_KEY S3_READER_SECRET_KEY CATALOG_READER_USER CATALOG_READER_PASSWORD \
+	CUBEJS_API_SECRET CUBEJS_SQL_USER CUBEJS_SQL_PASSWORD EVIDENCE_BASIC_USER EVIDENCE_BASIC_PASSWORD
+unexport CUBEJS_API_SECRET CUBEJS_SQL_USER CUBEJS_SQL_PASSWORD EVIDENCE_BASIC_USER EVIDENCE_BASIC_PASSWORD
+
+# Cube and the reports, on top of the storage stack. Reports at http://127.0.0.1:3000, behind the
+# EVIDENCE_BASIC_* login. Cube's /readyz -- the healthcheck -- stays red until it has read a fact row.
+# Every BI_ENV value is handed to docker compose, so it sees what the check below saw, from .env or
+# from the shell.
+$(foreach v,$(BI_ENV),$(eval bi_up: export $(v) := $$($(v))))
+bi_up:
+	$(if $(strip $(foreach v,$(BI_ENV),$(if $($(v)),,$(v)))),$(error set in .env: $(strip $(foreach v,$(BI_ENV),$(if $($(v)),,$(v))))))
+	docker compose --profile bi up -d --wait --build cube evidence
+
+# The pages validated against Cube, and every measure reconciled against the star. Needs `make bi_up`.
+bi_check:
+	uv run pytest -m integration --require-lake tests/integration/test_semantic_layer.py
+
+# Live-reloading pages at http://127.0.0.1:3001 against the running Cube. The CLI is the one in the
+# serve image, so it matches the server; `evidence dev` has no login, so it is published on loopback.
+reports_dev:
+	docker compose --profile bi run --rm --no-deps -p 127.0.0.1:3001:3001 -v ./reports:/project \
+		--user "$$(id -u):$$(id -g)" -e HOME=/tmp \
+		evidence evidence dev --host 0.0.0.0 --port 3001 --project /project

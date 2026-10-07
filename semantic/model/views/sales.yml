@@ -1,0 +1,22 @@
+# What the reports and agents query: the fact's measures with the dimensions joined on. Over the SQL
+# API this is the only table: the cubes are private, and the raw lake tables are not reachable.
+views:
+  - name: sales
+    description: Sales order lines with order date, customer category and brand.
+    cubes:
+      - join_path: sales_order_lines
+        includes:
+          - ordered_amount_excl_tax
+          - ordered_quantity
+          - order_lines
+          - in_full_lines
+          - in_full_rate
+      - join_path: sales_order_lines.order_date
+        includes:
+          - full_date
+      - join_path: sales_order_lines.customers
+        includes:
+          - customer_category_name
+      - join_path: sales_order_lines.stock_items
+        includes:
+          - brand

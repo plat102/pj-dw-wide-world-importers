@@ -56,3 +56,6 @@ __pycache__/
 # and holds no value; `.env` holds the values and never is. `*.env` above already covers it, but
 # the name is spelled out because it is the file that matters most.
 .env
+
+# What `evidence dev` caches in the project.
+reports/.evidence/

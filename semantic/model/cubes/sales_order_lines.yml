@@ -1,0 +1,52 @@
+# The order-line fact, read in place from the star. Every metric formula in the project lives in
+# this directory; the reports name measures and never define them.
+cubes:
+  - name: sales_order_lines
+    sql_table: lake.core.fct_sales_order_line
+    # Queried only through the view `sales`.
+    public: false
+    description: One row per sales order line.
+
+    joins:
+      - name: order_date
+        relationship: many_to_one
+        sql: "{CUBE}.order_date_key = {order_date}.date_key"
+      - name: customers
+        relationship: many_to_one
+        sql: "{CUBE}.customer_key = {customers}.customer_key"
+      - name: stock_items
+        relationship: many_to_one
+        sql: "{CUBE}.stock_item_key = {stock_items}.stock_item_key"
+
+    dimensions:
+      - name: sales_order_line_key
+        sql: "{CUBE}.sales_order_line_key"
+        type: number
+        primary_key: true
+
+    measures:
+      - name: ordered_amount_excl_tax
+        description: Quantity times the line's unit price, excluding tax. Ordered, not invoiced, so not revenue.
+        sql: "{CUBE}.quantity * {CUBE}.unit_price"
+        type: sum
+        format: currency
+
+      - name: ordered_quantity
+        description: Units ordered.
+        sql: "{CUBE}.quantity"
+        type: sum
+
+      - name: order_lines
+        description: Order lines.
+        type: count
+
+      - name: in_full_lines
+        description: Order lines whose picked quantity reached the ordered quantity.
+        sql: "CASE WHEN {CUBE}.picked_quantity >= {CUBE}.quantity THEN 1 ELSE 0 END"
+        type: sum
+
+      - name: in_full_rate
+        description: In-full lines over order lines, a ratio of sums at whatever grain is queried. The in-full half of OTIF, at order-line grain.
+        sql: "1.0 * {in_full_lines} / NULLIF({order_lines}, 0)"
+        type: number
+        format: percent

@@ -1,0 +1,7 @@
+# Must match the CLI version in the Makefile and the serve image in Dockerfile; a unit test checks
+# all three. No telemetry id: `evidence init` writes one, and it is removed on purpose.
+project:
+  name: "wwi-reports"
+  evidence: "0.10.1"
+
+pages: ./pages

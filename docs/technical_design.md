@@ -66,6 +66,8 @@ DuckLake decides how a raw table is stored. A large one becomes Parquet under th
 | Warehouse      | DuckLake on DuckDB              | Parquet on the store, catalog in Postgres 16                |
 | Transformation | dbt Core 1.12 + dbt-duckdb 1.11 | SQL-based ELT                                               |
 | Tooling        | Python 3.12,`wwi` CLI         | Extraction, verification, inspection                        |
+| Semantic layer | Cube 1.7 (DuckDB driver)        | Every metric formula and join, read from the star in place  |
+| Reports        | Evidence Core 0.10, self-hosted | Markdoc pages in git, querying Cube's SQL API               |
 | Visualization  | Looker Studio                   | Frozen against the BigQuery warehouse                       |
 
 `profiles.yml`, at the repository root and the one `make` points dbt at, declares one target, `lake`. The BigQuery build is history, not a target this repository can run — `dbt-bigquery` is deliberately not installed.
@@ -76,7 +78,24 @@ DuckLake decides how a raw table is stored. A large one becomes Parquet under th
 
 **`-volume.max=10` is a real ceiling, and one bucket reaches it at about 7 GiB.** SeaweedFS gives each bucket its own collection and grows a collection seven volumes at a time, so the `wwi` bucket holds 7 of the 10 one-GiB volumes and a second bucket could not be written to at all. Every extract, build and compare writes a full copy of each table into the lake, and time travel keeps every copy until its snapshot expires. A store that fills up fails the next load halfway. `make maintain` expires snapshots older than `KEEP_DAYS` (7 unless set), merges small files, and deletes every file no kept snapshot reads, orphans from failed writes included; the newest snapshot always survives, and `make compare` builds the two it needs. `make maintain DRY_RUN=1` reports without changing anything. It must not run alongside `extract` or `build`: two DuckLake writers conflict. A store that is full anyway is reset with `make clean_storage` and rebuilt.
 
-**Both published ports listen on loopback only.** The S3 identity is the store's admin and the catalog user is the Postgres superuser, and Docker's published ports go around a host firewall. `BIND_ADDRESS` in `.env` changes that, knowingly.
+**Every published port listens on loopback only.** The S3 identity is the store's admin, the catalog user is the Postgres superuser, Cube's SQL API answers any query a login can phrase, and Docker's published ports go around a host firewall. `BIND_ADDRESS` in `.env` changes that, knowingly.
+
+## Semantic layer and reports
+
+**A metric is defined in one place, `semantic/model/`, and the reports query it.** Cube declares cubes on the star — the fact and the conformed dimensions, not the flat mart — so it resolves joins itself and a dimension the mart does not carry, such as `brand`, stays reachable. Only the view `sales` is public. Evidence reads Cube's SQL API, never the lake: a page names `MEASURE(x)`, and Cube writes the SQL. The model files are the metric dictionary.
+
+| Rule | Why | Enforced by |
+|---|---|---|
+| Cube reads with the read-only identity (`S3_READER_*`, `CATALOG_READER_*`) and attaches `READ_ONLY` | the semantic layer has no business writing the lake | `docker-compose.yml`, `semantic/cube.js` |
+| Cube's driver fails on a broken attach and reads one fact row before it is ready | the stock driver swallows init errors, and `/readyz` stays green | `semantic/cube.js` |
+| No SQL and no `metrics/` in `reports/`; a component names a column or `MEASURE(x)` | Cube rewrites `sum` of a ratio into the ratio, but accepts `avg` over a subquery of a measure and `MEASURE(a) / MEASURE(b)` | `tests/unit/test_reports.py` |
+| Every column a cube names is declared in the core models' YAML; every cube is private | Cube resolves a column only when a query reaches it, and a public cube is a way around the view | `tests/unit/test_semantic_model.py` |
+| `evidence validate` must reach Cube; each measure must match SQL over the star | validate drops to syntax-only and exits 0 when Cube is down, and a broken connection shows as an empty dropdown | `make bi_check` |
+| Both images pinned by digest; the Evidence CLI is the one in the serve image | Evidence releases every few days, and the CLI must match the server | `tests/unit/test_reports.py` |
+
+**The single-definition guarantee is a rule plus a check, not an impossibility.** A page could still compose a new formula out of measures; the scan in `make check` and review are what catch it. `make bi_check` needs the stack, so it does not run in CI: CI has no loaded lake.
+
+Money reaches a page as `FLOAT8` through the SQL API: exact to the cent at this scale, but without the mart's `DECIMAL` type guarantee. Every viewer behind the reports' one Basic Auth login can send SQL to `/api/query`; with Cube in front, that reaches the semantic layer and nothing else.
 
 ## Boundaries
 
