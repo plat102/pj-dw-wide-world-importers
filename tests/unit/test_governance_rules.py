@@ -14,6 +14,7 @@ from config import settings
 EXPECTED = {
     "wide_world_importers_dw.dbt_score_rules.pii.sensitive_columns_are_classified",
     "wide_world_importers_dw.dbt_score_rules.pii.models_with_personal_data_say_so",
+    "wide_world_importers_dw.dbt_score_rules.naming.boolean_names_are_boolean",
 }
 
 

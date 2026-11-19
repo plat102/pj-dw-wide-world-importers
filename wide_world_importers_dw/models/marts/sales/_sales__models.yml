@@ -229,10 +229,10 @@ models:
         data_type: varchar
       - name: order_date_day_is_weekday
         description: "Order date — {{ doc('date__day_is_weekday') }}"
-        data_type: integer
+        data_type: boolean
       - name: expected_delivery_date_day_is_weekday
         description: "Expected delivery date — {{ doc('date__day_is_weekday') }}"
-        data_type: integer
+        data_type: boolean
       - name: sales_order_picking_completed_date_full_date
         description: "Order picking-completed date — {{ doc('date__full_date') }}"
         data_type: date

@@ -57,12 +57,15 @@ Naming conventions for tables and columns in the warehouse
 | Boolean            | `is_<description>`       | `is_employee`, `is_on_credit_hold`             |
 | General            | snake_case                 | `customer_name`, `unit_price`                  |
 
+A name that asserts a type carries that type: a column named `is_*`, `*_is_*`, `has_*` or `*_flag` is a `boolean`, never a 0/1 integer. `make score` (part of `make check`) fails a column so named whose declared `data_type` says otherwise.
+
 **Known exceptions**, recorded rather than quietly tolerated:
 
 | Column | Problem | Why it stays |
 |---|---|---|
-| `dim_date.day_is_weekday` | `is_` prefix on a 0/1 `integer`, not a boolean | The mart publishes it under an enforced contract |
-| ~~`quantiy_per_outer`~~ | Misspelled staging alias over a correctly-spelled source column | Fixed — nothing used it
+| ~~`dim_date.day_is_weekday`~~ | `is_` prefix on a 0/1 `integer`, not a boolean | Fixed — now a `boolean`, in the mart contract too |
+| ~~`quantiy_per_outer`~~ | Misspelled staging alias over a correctly-spelled source column | Fixed — nothing used it |
+| ~~`latest_recored_population`~~ | Misspelled staging alias over a correctly-spelled source column | Fixed — the intermediate model now reads `latest_recorded_population` |
 
 ### Schemas
 

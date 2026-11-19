@@ -50,7 +50,7 @@ LINE_REFERENCES = {
     "Makefile:16": "unexport MSSQL_CONNECTION_STRING",
     "Makefile:92": "build:",
     "Makefile:98": "extract: export MSSQL_CONNECTION_STRING",
-    "wide_world_importers_dw/tests/assert_dim_date_calendar.sql:33": "ref('dim_date').render()",
+    "wide_world_importers_dw/tests/assert_dim_date_calendar.sql:34": "ref('dim_date').render()",
     "wide_world_importers_dw/models/marts/sales/_sales__models.yml:14": "contract:",
 }
 ALWAYS_LOADED = (ROOT / "AGENTS.md", ROOT / "CLAUDE.md")

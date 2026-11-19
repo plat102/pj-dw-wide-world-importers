@@ -21,6 +21,6 @@ select
     strftime(full_date, '%B') as month_name,
     extract(dayofweek from full_date) + 1 as week_day,
     strftime(full_date, '%A') as day_name,
-    case when extract(dayofweek from full_date) + 1 in (1, 7) then 0 else 1 end as day_is_weekday
+    extract(dayofweek from full_date) + 1 not in (1, 7) as day_is_weekday
 from
     date_array
