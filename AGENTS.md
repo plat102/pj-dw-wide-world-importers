@@ -33,6 +33,7 @@ Need the stack (`make up`, Docker) and a filled `.env`: `make build`, `make shap
 | CI | `.github/workflows/build.yml` |
 | Metric formulas and joins (Cube) | `semantic/model/`; Cube's config in `semantic/cube.js` |
 | Report pages (Evidence) | `reports/pages/`; the connection to Cube in `reports/connection.yaml` |
+| Which models a report page reads (dbt exposures) | `wide_world_importers_dw/models/_reports__exposures.yml`; `dbt ls --select +exposure:<page>_page` |
 
 ## Conventions
 
@@ -44,6 +45,8 @@ Need the stack (`make up`, Docker) and a filled `.env`: `make build`, `make shap
 - A published column (core, marts) whose name suggests identity or contact data declares `meta.pii: person|none`, and a model with a `person` column declares `meta.contains_pii: true` — `make score` (part of `make check`) fails otherwise. Rules: [docs/naming_convention.md](docs/naming_convention.md), "Personal data".
 - Give every `ref` in a `from` or `join` an alias and qualify columns with it — under `--empty` dbt renders a ref as an unnamed subquery, so `make build_empty` fails otherwise.
 - A metric formula lives in `semantic/model/` and nowhere else: a cube reads `lake.core.*` and is `public: false`, and a page holds no SQL and names `MEASURE(x)`. `tests/unit/test_reports.py` and `tests/unit/test_semantic_model.py` enforce it.
+- Every page in `reports/pages/` has a dbt exposure named `<page>_page`, whose `depends_on` lists the core models behind the Cube views the page queries. Add, rename or remove the page and its exposure in one commit; `tests/unit/test_exposures.py` checks both directions.
+- A column named `is_*`, `*_is_*`, `has_*` or `*_flag` is a `boolean`, never a 0/1 integer; `make score` fails a declared `data_type` that says otherwise.
 - A test is trusted only after it has been seen to fail: break what it guards, watch it go red, restore.
 - Repository text is English only. Markdown prose is never hard-wrapped: one paragraph or bullet per line.
 - No row counts, model counts, test counts or sizes in docs, comments or YAML descriptions — they go stale. Name the command that measures it (`make shape`).
@@ -52,7 +55,7 @@ Need the stack (`make up`, Docker) and a filled `.env`: `make build`, `make shap
 ## Landmines
 
 - **Load gate runs first** — inside `dbt build` a failing source test does not skip the models downstream, so `make build` runs `complete_dlt_load` on its own first (`Makefile:92`). Keep that order when touching `build`.
-- **`dim_date` under `--empty`** — it is generated, not read from raw, so a test that needs its rows reads it through `{{ ref('dim_date').render() }}` (`wide_world_importers_dw/tests/assert_dim_date_calendar.sql:33`), or `build_empty` hands it zero rows.
+- **`dim_date` under `--empty`** — it is generated, not read from raw, so a test that needs its rows reads it through `{{ ref('dim_date').render() }}` (`wide_world_importers_dw/tests/assert_dim_date_calendar.sql:34`), or `build_empty` hands it zero rows.
 - **Mart columns are a contract** — `obt_sales_order_line` is `contract: enforced` (`wide_world_importers_dw/models/marts/sales/_sales__models.yml:14`). Changing its columns means changing that YAML in the same commit.
 - **`.env` values** — make reads `.env` itself (`Makefile:6`): a `#` truncates a value, a `$` is expanded, and quote marks stay part of it (`settings.require` refuses a quoted value).
 - **Integration tests are deselected** — plain `pytest` skips `-m integration`; `make compare` runs them and builds twice against the live lake.

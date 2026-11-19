@@ -11,7 +11,7 @@
 {% docs date__month_name %}Month name in English.{% enddocs %}
 {% docs date__week_day %}Day of week, 1 = Sunday through 7 = Saturday.{% enddocs %}
 {% docs date__day_name %}Day name in English.{% enddocs %}
-{% docs date__day_is_weekday %}1 on Monday–Friday, 0 on Saturday and Sunday.{% enddocs %}
+{% docs date__day_is_weekday %}True on Monday–Friday, false on Saturday and Sunday.{% enddocs %}
 
 {% docs person__full_name %}The person's full name as the source holds it.{% enddocs %}
 {% docs customer__name %}The customer's trading name.{% enddocs %}

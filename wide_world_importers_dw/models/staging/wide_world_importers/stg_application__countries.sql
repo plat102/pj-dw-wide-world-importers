@@ -7,5 +7,5 @@ select
     , country_name
     , formal_name as country_formal_name
     , country_type
-    , latest_recorded_population as latest_recored_population
+    , latest_recorded_population
 from raw

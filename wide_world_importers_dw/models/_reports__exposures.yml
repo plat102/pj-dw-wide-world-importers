@@ -1,0 +1,38 @@
+version: 2
+
+# One exposure per page in reports/pages/, named for the page's path with `_page` appended, and
+# pointing at the page's route on the reports server (`make bi_up`). A page reads Cube's view, and
+# Cube reads the star in place, so depends_on lists the core models behind every cube that view
+# joins -- not the flat mart, which Cube does not read. tests/unit/test_exposures.py fails when a
+# page has no exposure, an exposure has no page, or depends_on differs from what the page reads.
+# `dbt ls --select +exposure:sales_page` then answers which models a page stands on.
+
+exposures:
+  - name: index_page
+    label: "Reports: home"
+    type: dashboard
+    maturity: medium
+    url: http://127.0.0.1:3000/
+    description: >
+      The landing page of the reports. It links to the other pages and queries no data, so it
+      depends on no model; it is declared so that every page is accounted for.
+    owner:
+      name: Warehouse maintainers
+    depends_on: []
+
+  - name: sales_page
+    label: "Reports: sales orders"
+    type: dashboard
+    maturity: medium
+    url: http://127.0.0.1:3000/sales
+    description: >
+      Ordered amount by order month and in-full rate by customer category, filtered by brand. Reads
+      the `sales` view of the semantic layer, which joins the sales order line fact to the order
+      date, customer and stock item dimensions.
+    owner:
+      name: Warehouse maintainers
+    depends_on:
+      - ref('fct_sales_order_line')
+      - ref('dim_date')
+      - ref('dim_customer')
+      - ref('dim_stock_item')

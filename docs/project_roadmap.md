@@ -60,6 +60,7 @@ SCD Type 2 was once listed as a deliverable and is **not built** — see [Change
 | Enforced architectural boundaries, as import contracts | `make lint` |
 | One semantic layer that every report queries | `semantic/model/`, `make bi_check` |
 | Reports as code, served from the repository | `reports/`, `make bi_up` |
+| A dbt exposure per report page, naming the models the page reads | `dbt ls --select +exposure:sales_page`; kept in step with the pages by `make check` |
 | Looker Studio dashboards | against the frozen BigQuery build |
 
 ### Not built

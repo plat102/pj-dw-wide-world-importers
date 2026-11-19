@@ -77,7 +77,7 @@ Table dim_date {
   fiscal_year bigint [note: 'April start']
   fiscal_qtr varchar [note: 'aligned to the April start: Q1 is Apr-Jun']
   week_day bigint [note: '1 = Sunday .. 7 = Saturday']
-  day_is_weekday integer [note: '0 or 1, not a boolean']
+  day_is_weekday boolean
 
   note: 'Type 0: generated, never updated from a source. Only some attributes shown.'
 }
